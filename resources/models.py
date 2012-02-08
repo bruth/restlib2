@@ -1,96 +1,411 @@
-from resources import codes, methods
+from datetime import datetime
+from werkzeug.wrappers import Response
+from werkzeug.http import http_date
+from .http import StatusCode, codes, methods
 
-class Response(object):
-    pass
+# Convenience function for checking for existent, callable methods
+usable = lambda x, y: callable(getattr(x, y, None))
 
+# ## Resource Metaclass
+# Sets up a few helper components for the `Resource` class.
+class ResourceMetaclass(type):
+    def __new__(cls, name, bases, attrs):
+        new_cls = type.__new__(cls, name, bases, attrs)
+
+        # If `allowed_methods` is not defined explicitly in attrs, this
+        # could mean one of two things: that the user wants it to inherit
+        # from the parent class (if exists) or for it to be set implicitly.
+        # The more explicit (and flexible) behavior will be to not inherit
+        # it from the parent class, therefore the user must explicitly
+        # re-set the attribute.
+        if 'allowed_methods' not in attrs or not new_cls.allowed_methods:
+            allowed_methods = []
+
+            for method in methods:
+                if usable(new_cls, method.lower()):
+                    allowed_methods.append(method)
+
+        # If the attribute is defined in this subclass, ensure all methods that
+        # are said to be allowed are actually defined and callable.
+        else:
+            allowed_methods = new_cls.allowed_methods
+
+            for method in allowed_methods:
+                if not usable(new_cls, method.lower()):
+                    raise ValueError('The {} method is not defined for the '
+                        'resource {}'.format(method, name))
+
+        # Always add _OPTIONS_ handler. The only way to disable it (which you
+        # shouldn't) if to set it `None`.
+        if 'OPTIONS' not in allowed_methods and usable(new_cls, 'options'):
+            allowed_methods.append('OPTIONS')
+
+        # The _HEAD_ handler depends on the _GET_ handler, so remove
+        # it if not defined.
+        if 'GET' not in allowed_methods and 'HEAD' in allowed_methods:
+            allowed_methods.remove('HEAD')
+
+        new_cls.allowed_methods = tuple(allowed_methods)
+
+        return new_cls
+
+
+# ## Resource
+# Comprehensive ``Resource`` class which implements sensible request
+# processing. The process flow is largely derived from Alan Dean's
+# [status code activity diagram][0].
+# [0]: http://code.google.com/p/http-headers-status/downloads/detail?name=http-headers-status%20v3%20draft.png
 class Resource(object):
-    def __init__(self):
-        self.response = Response()
+
+    __metaclass__ = ResourceMetaclass
+
+    # ### Service Availability
+    # Toggle this resource as unavailable. If `True`, the service
+    # will be unavailable indefinitely. If an integer or datetime is
+    # used, the `Retry-After` header will set. An integer can be used
+    # to define a seconds delta from the current time (good for unexpected
+    # downtimes). If a datetime is set, the number of seconds will be
+    # calculated relative to the current time (good for planned downtime).
+    offline = False
+
+    # ### Use ETags
+    # If `True`, the `ETag` header will be set on responses and conditional
+    # requests are supported. This applies to _GET_, _HEAD_, _PUT_, _PATCH_
+    # and _DELETE_ requests.
+    use_etags = True
+
+    # ### Use Last Modified
+    # If `True`, the `Last-Modified` header will be set on responses and
+    # conditional requests are supported. This applies to _GET_, _HEAD_, _PUT_,
+    # _PATCH_ and _DELETE_ requests.
+    use_last_modified = False
+
+    # ### Supported _Accept_ Mimetypes
+    # Define a list of mimetypes supported for encoding response entity
+    # bodies. Default to `('application/json',)`
+    # _See also: `supported_content_types`_
+    supported_accept_types = ('application/json',)
+
+    # ### Supported _Content-Type_ Mimetypes
+    # Define a list of mimetypes supported for decoding request entity bodies.
+    # This is independent of the mimetypes encoders for request bodies.
+    # Default to `('application/json',)`
+    # _See also: `supported_accept_types`_
+    supported_content_types = ('application/json',)
+
+    # ### Allowed Methods
+    # If `None`, the allowed methods will be determined based on the resource
+    # methods define, e.g. `get`, `put`, `post`. A list of methods can be
+    # defined explicitly to have not expose defined methods.
+    allowed_methods = None
 
     def __call__(self, request, *args, **kwargs):
-        # 503 Service Unavailable - Upstream
+        # Initilize a new response for this request. This is a
+        # mutable object
+        response = Response()
+
+        # Process the request. The _entity_ that is returned may
+        # be the response entity-body, a status code or None.
+        entity = self.process(request, response, *args, **kwargs)
+
+        if isinstance(entity, StatusCode):
+            response.status_code = entity.status_code
+        elif not None and entity:
+            response.data = entity
+
+        return response
+
+    def process(self, request, response, *args, **kwargs):
+        # TODO keep track of a list of request headers used to
+        # determine the resource representation for the 'Vary'
+        # header.
+
+        # 503 Service Unavailable
+        if self.service_unavailable(request, response):
+            return codes.service_unavailable
 
         # 414 Request URI Too Long - Upstream
 
         # 400 Bad Request - Upstream, note that many services respond
         # with this code when entities are unprocessable. This should
-        # really be a 422
+        # really be a 422 Unprocessable Entity
 
         # 401 Unauthorized
-        if not self.is_authorized(request):
+        if self.unauthorized(request, response):
             return codes.unauthorized
 
         # 403 Forbidden
         # TODO implement.., arbitrary resource restriction?
+        if self.forbidden(request, response):
+            return codes.forbidden
 
         # 501 Not Implemented
         # TODO application-wide block of request methods..
 
+        # OPTIONS should alway be available. process it in lieu of this
+        # resource's allowed methods. Note, this comes before checking the
+        # request body.
+        if request.method == methods.options:
+            return self.options(request, response)
+
         # 415 Unsupported Media Type
-        if not self.content_type_supported(request):
+        if self.unsupported_media_type(request, response):
             return codes.unsupported_media_type
 
         # 413 Request Entity Too Large
-        if self.request_entity_too_large(request):
-            self.response.headers['retry-after'] = 20
+        if self.request_entity_too_large(request, response):
             return codes.request_entity_too_large
 
-        # OPTIONS should alway be available. process is in lieu of this
-        # resource's allowed methods
-        if request.method == methods.options:
-            return self.OPTIONS(request)
-
         # 405 Method Not Allowed
-        if request.method not in self.allowed_methods:
+        if self.method_not_allowed(request, response):
             return codes.method_not_allowed
 
         # 406 Not Acceptable
-        # Has the Accept header?
-        if request.headers['accept'] and not self.accept_supported(request):
+        # Checks Accept and Accept-* headers
+        if self.not_acceptable(request, response):
             return codes.not_acceptable
 
-        # Has the Accept-Language header?
-        if request.headers['accept-language'] and not self.accept_language_supported(request):
-            return codes.not_acceptable
+        # ## Conditional Requests
+        # _Applies to GET, HEAD, PUT, PATCH, DELETE_.
+        # For GET and HEAD, the request checks the either the entity changed
+        # since the last time it requested it, `If-Modified-Since`, or if the
+        # entity tag (ETag) has changed, `If-None-Match`.
+        #
+        etag, last_modified = None, None
 
-        # Has the Accept-Charset header?
-        if request.headers['accept-charset'] and not self.accept_charset_supported(request):
-            return codes.not_acceptable
+        if self.use_etags:
+            etag = self.get_etag(request, *args, **kwargs)
 
-         # Has the Accept-Encoding header?
-        if request.headers['accept-encoding'] and not self.accept_encoding_supported(request):
-            return codes.not_acceptable
+        if self.use_last_modified:
+            modified = self.get_last_modified(request, *args, **kwargs)
 
-        # 412 Precondition Failed
-        if request.headers['if-match']:
+        # Check for conditional GET or HEAD request
+        if request.method == methods.get or request.method == methods.head:
+            if self.use_etags:
+                if 'if-none-match' in request.headers:
+                    response.headers['etag'] = etag
+                    if request.headers['if-none-match'] == etag:
+                        return codes.not_modified
+            elif self.use_last_modified:
+                if 'if-modified-since' in request.headers:
+                    last_modified = http_date(modified)
+                    response.headers['last-modified'] = last_modified
+                    if request.headers['if-modified-since'] == last_modified:
+                        return codes.not_modified
+
+        # Check for conditional PUT or DELETE request
+        elif request.method in (methods.put, methods.delete, methods.patch):
             pass
 
-    def is_authenticated(self, request):
-        "Test if this request is authenticated."
+        # 404 Not Found
+        if self.not_found(request, response):
+            return codes.not_found
 
-    def is_authorized(self, request):
-        "Test if this request is authorized."
+        # 410 Gone
+        if self.gone(request, response, *args, **kwargs):
+            return codes.gone
 
-    def request_entity_too_large(self, request):
-        "Check if the request body is too large to process."
+        # 412 Precondition Failed
+        if self.precondition_failed(request, response):
+            return codes.precondition_failed
 
-    def content_type_supported(self, request):
-        return request.headers['content-type'] in self.supported_content_types
+        return getattr(self, request.method.lower())(request, response, *args, **kwargs)
 
-    def accept_supported(self, request):
-        "Check to see if the media type is supported for response."
+    # ## Request Method Handlers
 
-    def accept_language_supported(self, request):
-        "Check to see if the language is supported for response."
+    # ### _HEAD_ Request Handler
+    # Default handler for _HEAD_ requests. For this to be available,
+    # a _GET_ handler must be defined.
+    def head(self, request, response, *args, **kwargs):
+        self.get(request, response, *args, **kwargs)
+        response.data = ''
 
-    def accept_charset_supported(self, request):
-        "Check to see if the character set is supported for response."
+    # ### _OPTIONS_ Request Handler
+    # Default handler _OPTIONS_ requests.
+    def options(self, request, response, *args, **kwargs):
+        response.headers['Allow'] = ', '.join(sorted(self.allowed_methods))
+        response.headers['Content-Length'] = 0
+        # HTTP/1.1
+        response.headers['Cache-Control'] = 'no-cache'
+        # HTTP/1.0
+        response.headers['Pragma'] = 'no-cache'
 
-    def accept_encoding_supported(self, request):
-        "Check to see if the encoding is supported for response."
 
-    def OPTIONS(self, request):
-        # Does not do anything with requests with an entity-body
-        self.response.headers['allow'] = self.format_allow_header()
-        self.response.headers['content-length'] = 0
-        # TODO add never cache headers..
+    # ## Response Status Code Handlers
+    # Performs checks for validate each check during request
+    # and response processing.
+
+    # ### Service Unavailable
+    # Checks if the service is unavailable based on the `offline` flag.
+    # Set the `Retry-After` header if possible to inform clients when
+    # the resource is expected to be available.
+    # See also: `offline`
+    def service_unavailable(self, request, response):
+        if self.offline:
+            if type(self.offline) is int and self.offline > 0:
+                retry = self.offline
+            elif type(self.offline) is datetime:
+                retry = http_date(self.offline)
+            else:
+                retry = None
+
+            if retry:
+                response.headers['retry-after'] = retry
+            return True
+        return False
+
+    # ### Unauthorized
+    # Checks if the request is authorized to access this resource.
+    # Default is a no-op.
+    def unauthorized(self, request, response):
+        return False
+
+    # ### Forbidden
+    # Checks if the request is forbidden. Default is a no-op.
+    def forbidden(self, request, response, *args, **kwargs):
+        return False
+
+    # ### Request Entity Too Large
+    # Check if the request entity is too large to process. Default is
+    # a no-op.
+    def request_entity_too_large(self, request, response):
+        return False
+
+    # ### Method Not Allowed
+    # Check if the request method is not allowed.
+    def method_not_allowed(self, request, response):
+        if request.method not in self.allowed_methods:
+            response.headers['allow'] = ', '.join(sorted(self.allowed_methods))
+            return True
+        return False
+
+    # ### Unsupported Media Type
+    # Check if this resource can process the request entity body. Note
+    # `Content-Type` is set as the empty string, so ensure it is not falsy
+    # when processing it.
+    def unsupported_media_type(self, request, response):
+        if 'content-type' in request.headers and request.content_type:
+            if not self.content_type_supported(request, response):
+                return True
+
+            if 'content-encoding' in request.headers:
+                if not self.content_encoding_supported(request, response):
+                    return True
+
+            if 'content-language' in request.headers:
+                if not self.content_language_supported(request, response):
+                    return True
+
+        return False
+
+    # ### Not Acceptable
+    # Check if this resource can return an acceptable response.
+    def not_acceptable(self, request, response):
+        if 'accept' in request.headers:
+            if not self.accept_type_supported(request, response):
+                return True
+
+        if 'accept-language' in request.headers:
+            if not self.accept_language_supported(request, response):
+                return True
+
+        if 'accept-charset' in request.headers:
+            if not self.accept_charset_supported(request, response):
+                return True
+
+        if 'accept-encoding' in request.headers:
+            if not self.accept_encoding_supported(request, response):
+                return True
+
+        return False
+
+    # ### Not Found
+    # Checks if the requested resource exists.
+    def not_found(self, request, response, *args, **kwargs):
+        return False
+
+    # ### Gone
+    # Checks if the resource _no longer_ exists.
+    def gone(self, request, response, *args, **kwargs):
+        return False
+
+
+    # ## Helper Methods
+    # Various methods that do the heavy lifting.
+
+    # ### Request Accept-* handlers
+    # Checks if the requested `Accept` mimetype is supported.
+    def accept_type_supported(self, request, response):
+        for mt in request.accept_mimetypes:
+            if mt in self.supported_accept_types:
+                response._accept_type = mt
+                return True
+        else:
+            # **TODO** Only if `Accept` explicitly contains a `*/*;q=0.0`
+            # does it preclude from returning a non-matching mimetype.
+            # This may be desirable behavior (or not), so add this as an
+            # option, e.g. `force_accept_type`
+            if not request.accept_mimetypes['*/*'] == 0:
+                return False
+
+        # **TODO** Should a header be set notifying which are acceptable?
+        response._accept_type = self.supported_content_types[0]
+        return True
+
+    # Checks if the requested `Accept-Charset` is supported.
+    def accept_charset_supported(self, request, response):
+        return True
+
+    # Checks if the requested `Accept-Encoding` is supported.
+    def accept_encoding_supported(self, request, response):
+        return True
+
+    # Checks if the requested `Accept-Language` is supported.
+    def accept_language_supported(self, request, response):
+        return True
+
+
+    # ### Conditionl Request Handlers
+
+    def precondition_failed(request, response, *args, **kwargs):
+        pass
+
+    def get_etag(self, request, *args, **kwargs):
+        """Calculates an etag for the requested entity.
+
+        Provides the client an entity tag for future conditional
+        requests.
+
+        For GET and HEAD requests the `If-None-Match` header may be
+        set to check if the entity has changed since the last request.
+
+        For PUT, PATCH, and DELETE requests, the `If-Match` header may be
+        set to ensure the entity is the same as the cllient's so the current
+        operation is valid (optimistic concurrency).
+        """
+
+    def get_last_modified(self, request, *args, **kwargs):
+        """Calculates the last modified time for the requested entity.
+
+        Provides the client the last modified of the entity for future
+        conditional requests.
+        """
+
+    def get_expiry(self, request, *args, **kwargs):
+        """Gets the expiry date and time for the requested entity.
+
+        Informs the client when the entity will be invalid. This is most
+        useful for clients to only refresh when they need to, otherwise the
+        client's local cache is used.
+        """
+
+
+    # Entity Content-* handlers
+    def content_type_supported(self, request, response, *args, **kwargs):
+        return request.mimetype in self.supported_content_types
+
+    def content_encoding_supported(self, request, response, *args, **kwargs):
+        return True
+
+    def content_language_supported(self, request, response, *args, **kwargs):
+        return True

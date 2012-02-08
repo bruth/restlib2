@@ -1,58 +1,28 @@
-# Original source:
-# https://github.com/kennethreitz/requests/blob/develop/requests/structures.py
+class NameDescriptor(object):
+    def __set__(self, instance, value):
+        self.name = value
 
-class CaseInsensitiveDict(dict):
-    """Case-insensitive Dictionary
+    def __get__(self, instance, owner):
+        return self.name
 
-    For example, ``headers['content-encoding']`` will return the
-    value of a ``'Content-Encoding'`` response header."""
 
-    @property
-    def lower_keys(self):
-        if not hasattr(self, '_lower_keys') or not self._lower_keys:
-            self._lower_keys = dict((k.lower(), k) for k in self.iterkeys())
-        return self._lower_keys
+class AttrDict(object):
+    "A named attribute accessible dict-like object"
+    name = NameDescriptor()
 
-    def _clear_lower_keys(self):
-        if hasattr(self, '_lower_keys'):
-            self._lower_keys.clear()
-
-    def __setitem__(self, key, value):
-        dict.__setitem__(self, key, value)
-        self._clear_lower_keys()
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-        self._lower_keys.clear()
-
-    def __contains__(self, key):
-        return key.lower() in self.lower_keys
-
-    def __getitem__(self, key):
-        # We allow fall-through here, so values default to None
-        if key in self:
-            return dict.__getitem__(self, self.lower_keys[key.lower()])
-
-    def get(self, key, default=None):
-        if key in self:
-            return self[key]
-        else:
-            return default
-
-class LookupDict(dict):
-    """Dictionary lookup object."""
-
-    def __init__(self, name=None):
+    def __init__(self, name, *args, **kwargs):
         self.name = name
-        super(LookupDict, self).__init__()
+        self.__dict__.update(*args, **kwargs)
 
     def __repr__(self):
-        return '<lookup \'%s\'>' % (self.name)
+        return u'<AttrDict: %s>' % self.name
 
-    def __getitem__(self, key):
-        # We allow fall-through here, so values default to None
+    def __getattr__(self, key):
+        return self.__dict__.get(key.upper(), None)
 
-        return self.__dict__.get(key, None)
+    def __contains__(self, key):
+        return self.__dict__.__contains__(key.upper())
 
-    def get(self, key, default=None):
-        return self.__dict__.get(key, default)
+    def __iter__(self):
+        return self.__dict__.__iter__()
+
