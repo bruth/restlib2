@@ -6,10 +6,11 @@ class Method(object):
 
     ref: http://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
     """
-    def __init__(self, method, safe, idempotent):
+    def __init__(self, method, safe, idempotent, cacheable):
         self.method = method
         self.safe = safe
         self.idempotent = idempotent
+        self.cacheable = cacheable
 
     def __str__(self):
         return self.method
@@ -21,6 +22,8 @@ class Method(object):
             props.append('Safe')
         if self.idempotent:
             props.append('Idempotent')
+        if self.cacheable:
+            props.append('Cacheable')
 
         if props:
             return '<Method: %s (%s)>' % (str(self), ', '.join(props))
@@ -52,15 +55,14 @@ class StatusCode(object):
 methods = AttrDict(
     'HTTP Methods',
 
-    GET = Method('GET', True, True),
-    HEAD = Method('HEAD', True, True),
-    OPTIONS = Method('OPTIONS', True, True),
-    TRACE = Method('TRACE', True, True),
-    PUT = Method('PUT', False, True),
-    DELETE = Method('DELETE', False, True),
-    POST = Method('POST', False, False),
+    GET = Method('GET', True, True, True),
+    HEAD = Method('HEAD', True, True, True),
+    OPTIONS = Method('OPTIONS', True, True, False),
+    POST = Method('POST', False, False, False),
+    PUT = Method('PUT', False, True, False),
+    DELETE = Method('DELETE', False, True, False),
     # PATCH Method introduced; ref: http://tools.ietf.org/html/rfc5789
-    PATCH = Method('PATCH', False, False),
+    PATCH = Method('PATCH', False, False, False),
 )
 
 codes = AttrDict(

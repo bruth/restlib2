@@ -11,8 +11,9 @@ usable = lambda x, y: callable(getattr(x, y, None))
 class ResourceMetaclass(type):
     def __new__(cls, name, bases, attrs):
 
-        # Create the new class as is to start. Subclass attributes can checked
-        # for in `attrs` and handled as necessary relative to the base classes.
+        # Create the new class as is to start. Subclass attributes can be
+        # checked for in `attrs` and handled as necessary relative to the base
+        # classes.
         new_cls = type.__new__(cls, name, bases, attrs)
 
         # If `allowed_methods` is not defined explicitly in attrs, this
@@ -31,17 +32,12 @@ class ResourceMetaclass(type):
         # If the attribute is defined in this subclass, ensure all methods that
         # are said to be allowed are actually defined and callable.
         else:
-            allowed_methods = new_cls.allowed_methods
+            allowed_methods = list(new_cls.allowed_methods)
 
             for method in allowed_methods:
                 if not usable(new_cls, method.lower()):
                     raise ValueError('The {} method is not defined for the '
-                        'resource {}'.format(method, name))
-
-        # Always add _OPTIONS_ handler. The only way to disable it (which you
-        # shouldn't) if to set it `None`.
-        if 'OPTIONS' not in allowed_methods and usable(new_cls, 'options'):
-            allowed_methods.append('OPTIONS')
+                        'resource {}'.format(method, new_cls.__name__))
 
         # The _HEAD_ handler depends on the _GET_ handler, so remove
         # it if not defined.
@@ -57,7 +53,39 @@ class ResourceMetaclass(type):
 # Comprehensive ``Resource`` class which implements sensible request
 # processing. The process flow is largely derived from Alan Dean's
 # [status code activity diagram][0].
+#
+# ### Implementation Considerations
+# [Section 2][1] of the HTTP/1.1 specification states:
+#
+# > The methods GET and HEAD MUST be supported by all general-purpose servers.
+# > All other methods are OPTIONAL;
+#
+# The `HEAD` handler is already implemented on the `Resource` class, but
+# requires the `GET` handler to be implemented. Although not required, the
+# `OPTIONS` handler is also implemented.
+#
+# Response representations should follow the rules outlined in [Section 5.1][2].
+#
+# [Section 6.1][3] defines that `GET`, `HEAD`, `OPTIONS` and `TRACE` are
+# considered _safe_ methods, thus ensure the implementation of these methods do
+# not have any side effects. In addition to the safe methods, `PUT` and
+# `DELETE` are considered _idempotent_ which means subsequent identical requests
+# to the same resource does not result it different responses to the client.
+#
+# Request bodies on `GET`, `HEAD`, `OPTIONS`, and `DELETE` requests are
+# ignored. The HTTP spec does not define any semantics surrounding this
+# situtation.
+#
+# Typical uses of `POST` requests are described in [Section 6.5][4], but in most
+# cases should be assumed by clients as _black box_, neither safe nor idempotent.
+# If updating an existing resource, it is more appropriate to use `PUT`.
+#
+#
 # [0]: http://code.google.com/p/http-headers-status/downloads/detail?name=http-headers-status%20v3%20draft.png
+# [1]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-2
+# [2]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-5.1
+# [3]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-6.1
+# [4]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-6.5
 class Resource(object):
 
     __metaclass__ = ResourceMetaclass
@@ -78,12 +106,12 @@ class Resource(object):
     allowed_methods = None
 
     # ### Request Rate Limiting
-    # Enforce request rate limiting. Both `request_limit_count` and
-    # `request_limit_seconds` must be defined and not zero to be active.
+    # Enforce request rate limiting. Both `rate_limit_count` and
+    # `rate_limit_seconds` must be defined and not zero to be active.
     # By default, the number of seconds defaults to 1 hour, but the count
     # is `None`, therefore rate limiting is not enforced.
-    request_limit_count = None
-    request_limit_seconds = 60 * 60
+    rate_limit_count = None
+    rate_limit_seconds = 60 * 60
 
     # ### Max Request Entity Length
     # If not `None`, checks if the request entity body is too large to
@@ -127,20 +155,37 @@ class Resource(object):
     # Every `Resource` class can be initialized once since they are stateless
     # (and thus thread-safe).
     def __call__(self, request, *args, **kwargs):
-        # Initilize a new response for this request. Passing the response along the
-        # request cycle allows for gradual modification of the headers.
-        response = Response()
 
-        # Process the request. The `output` may be the response
-        # entity body, a status code or `None`.
+        # Initilize a new response for this request. Passing the response along
+        # the request cycle allows for gradual modification of the headers. The
+        # `status_code` is set to `None` initially to allow for detection when
+        # it has not been explicitly.
+        response = Response()
+        response.status_code = 0
+
+        # Process the request, this should modify the provided `response`
+        # object.
         output = self.process(request, response, *args, **kwargs)
 
+        if output is response:
+            output = None
+
+        self._prepare_response(output, request, response, *args, **kwargs)
+        return response
+
+    # Prepares the final state of the response prior to being returned from
+    # this resource. It's purpose is to ensure nothing is missing that would
+    # make the response unprocessable by user agents.
+    def _prepare_response(self, output, request, response, *args, **kwargs):
         if isinstance(output, StatusCode):
             response.status_code = output.status_code
         elif output is not None:
             response.data = output
 
-        return response
+        # Apply some basic logic for determining the correct status code.
+        # TODO
+        if not response.status_code:
+            response.status_code = codes.ok.status_code
 
     def process(self, request, response, *args, **kwargs):
         # TODO keep track of a list of request headers used to
@@ -171,9 +216,9 @@ class Resource(object):
             return codes.forbidden
 
         # ### 429 Too Many Requests
-        # Both `request_limit_count` and `request_limit_seconds` must be none
+        # Both `rate_limit_count` and `rate_limit_seconds` must be none
         # falsy values to be checked.
-        if self.request_limit_count and self.request_limit_seconds:
+        if self.rate_limit_count and self.rate_limit_seconds:
             if self.too_many_requests(request, response, *args, **kwargs):
                 return codes.too_many_requests
 
@@ -226,23 +271,28 @@ class Resource(object):
                 return codes.precondition_required
 
 
-        # ETags are enabled, check for conditional request headers
+        # ETags are enabled. Check for conditional request headers. The current
+        # ETag value is used for the conditional requests. After the request
+        # method handler has been processed, the new ETag will be calculated.
         if self.use_etags:
             etag = self.get_etag(request, *args, **kwargs)
 
             # Check for conditional GET or HEAD request
             if request.method == methods.get or request.method == methods.head:
                 if 'if-none-match' in request.headers:
-                    response.headers['etag'] = etag
                     if request.headers['if-none-match'] == etag:
                         return codes.not_modified
- 
+
             # Check for conditional PUT or PATCH request
             elif request.method == methods.put or request.method == methods.patch:
                 if 'if-match' in request.headers:
                     if request.headers['if-match'] != etag:
                         return codes.precondition_failed
 
+        # Last-Modified date enabled. check for conditional request headers. The
+        # current modification datetime value is used for the conditional
+        # requests. After the request method handler has been processed, the new
+        # Last-Modified datetime will be returned.
         elif self.use_last_modified:
             modified = self.get_last_modified(request, *args, **kwargs)
             last_modified = http_date(modified)
@@ -250,7 +300,6 @@ class Resource(object):
             # Check for conditional GET or HEAD request
             if request.method == methods.get or request.method == methods.head:
                 if 'if-modified-since' in request.headers:
-                    response.headers['last-modified'] = last_modified
                     if request.headers['if-modified-since'] == last_modified:
                         return codes.not_modified
 
@@ -272,7 +321,18 @@ class Resource(object):
         if self.precondition_failed(request, response):
             return codes.precondition_failed
 
-        return getattr(self, request.method.lower())(request, response, *args, **kwargs)
+        # ### Call Request Method Handler
+        handler_output = getattr(self, request.method.lower())(request,
+            response, *args, **kwargs)
+
+        # TODO implement post request method handling header augmentation
+        if self.use_etags and 'etag' not in response.headers:
+            pass
+
+        elif self.use_last_modified and 'last-modified' not in response.headers:
+            pass
+
+        return handler_output
 
     # ## Request Method Handlers
 
