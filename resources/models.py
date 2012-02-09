@@ -10,6 +10,9 @@ usable = lambda x, y: callable(getattr(x, y, None))
 # Sets up a few helper components for the `Resource` class.
 class ResourceMetaclass(type):
     def __new__(cls, name, bases, attrs):
+
+        # Create the new class as is to start. Subclass attributes can checked
+        # for in `attrs` and handled as necessary relative to the base classes.
         new_cls = type.__new__(cls, name, bases, attrs)
 
         # If `allowed_methods` is not defined explicitly in attrs, this
@@ -68,6 +71,32 @@ class Resource(object):
     # calculated relative to the current time (good for planned downtime).
     offline = False
 
+    # ### Allowed Methods
+    # If `None`, the allowed methods will be determined based on the resource
+    # methods define, e.g. `get`, `put`, `post`. A list of methods can be
+    # defined explicitly to have not expose defined methods.
+    allowed_methods = None
+
+    # ### Request Rate Limiting
+    # Enforce request rate limiting. Both `request_limit_count` and
+    # `request_limit_seconds` must be defined and not zero to be active.
+    # By default, the number of seconds defaults to 1 hour, but the count
+    # is `None`, therefore rate limiting is not enforced.
+    request_limit_count = None
+    request_limit_seconds = 60 * 60
+
+    # ### Max Request Entity Length
+    # If not `None`, checks if the request entity body is too large to
+    # be processed.
+    max_request_entity_length = None
+
+    # ### Require Conditional Request
+    # If `True`, `PUT` and `PATCH` requests are required to have a conditional
+    # header for verifying the operation applies to the current state of the
+    # resource on the server. This must be used in conjunction with either
+    # the `use_etags` or `use_last_modified` option to take effect.
+    require_conditional_request = True
+
     # ### Use ETags
     # If `True`, the `ETag` header will be set on responses and conditional
     # requests are supported. This applies to _GET_, _HEAD_, _PUT_, _PATCH_
@@ -93,25 +122,23 @@ class Resource(object):
     # _See also: `supported_accept_types`_
     supported_content_types = ('application/json',)
 
-    # ### Allowed Methods
-    # If `None`, the allowed methods will be determined based on the resource
-    # methods define, e.g. `get`, `put`, `post`. A list of methods can be
-    # defined explicitly to have not expose defined methods.
-    allowed_methods = None
 
+    # ## Initialize Once, Process Many
+    # Every `Resource` class can be initialized once since they are stateless
+    # (and thus thread-safe).
     def __call__(self, request, *args, **kwargs):
-        # Initilize a new response for this request. This is a
-        # mutable object
+        # Initilize a new response for this request. Passing the response along the
+        # request cycle allows for gradual modification of the headers.
         response = Response()
 
-        # Process the request. The _entity_ that is returned may
-        # be the response entity-body, a status code or None.
-        entity = self.process(request, response, *args, **kwargs)
+        # Process the request. The `output` may be the response
+        # entity body, a status code or `None`.
+        output = self.process(request, response, *args, **kwargs)
 
-        if isinstance(entity, StatusCode):
-            response.status_code = entity.status_code
-        elif not None and entity:
-            response.data = entity
+        if isinstance(output, StatusCode):
+            response.status_code = output.status_code
+        elif output is not None:
+            response.data = output
 
         return response
 
@@ -120,92 +147,128 @@ class Resource(object):
         # determine the resource representation for the 'Vary'
         # header.
 
-        # 503 Service Unavailable
+        # ### 503 Service Unavailable
+        # The server does not need to be unavailable for a resource to be
+        # unavailable...
         if self.service_unavailable(request, response):
             return codes.service_unavailable
 
-        # 414 Request URI Too Long - Upstream
+        # ### 414 Request URI Too Long _(not implemented)_
+        # This should be be handled upstream by the Web server
 
-        # 400 Bad Request - Upstream, note that many services respond
-        # with this code when entities are unprocessable. This should
-        # really be a 422 Unprocessable Entity
+        # ### 400 Bad Request _(not implemented)_
+        # Note that many services respond with this code when entities are
+        # unprocessable. This should really be a 422 Unprocessable Entity
 
-        # 401 Unauthorized
+        # ### 401 Unauthorized
+        # Check if the request is authorized to access this resource.
         if self.unauthorized(request, response):
             return codes.unauthorized
 
-        # 403 Forbidden
-        # TODO implement.., arbitrary resource restriction?
+        # ### 403 Forbidden
+        # Check if this resource is forbidden for the request.
         if self.forbidden(request, response):
             return codes.forbidden
 
-        # 501 Not Implemented
-        # TODO application-wide block of request methods..
+        # ### 429 Too Many Requests
+        # Both `request_limit_count` and `request_limit_seconds` must be none
+        # falsy values to be checked.
+        if self.request_limit_count and self.request_limit_seconds:
+            if self.too_many_requests(request, response, *args, **kwargs):
+                return codes.too_many_requests
 
-        # OPTIONS should alway be available. process it in lieu of this
-        # resource's allowed methods. Note, this comes before checking the
-        # request body.
-        if request.method == methods.options:
+        # ### 501 Not Implemented _(not implemented)_
+        # This technically refers to a service-wide response for an
+        # unimplemented request method.
+
+        # ### Process an _OPTIONS_ request
+        # Enough processing has been performed to allow an OPTIONS request.
+        if request.method == methods.options and 'OPTIONS' in self.allowed_methods:
             return self.options(request, response)
 
-        # 415 Unsupported Media Type
-        if self.unsupported_media_type(request, response):
-            return codes.unsupported_media_type
+        # ## Request Entity Checks
+        if request.content_length:
+            # ### 415 Unsupported Media Type
+            # Check if the entity `Content-Type` supported by for decoding.
+            if self.unsupported_media_type(request, response):
+                return codes.unsupported_media_type
 
-        # 413 Request Entity Too Large
-        if self.request_entity_too_large(request, response):
-            return codes.request_entity_too_large
+            # ### 413 Request Entity Too Large
+            # Check if the entity is too large for processing
+            if self.request_entity_too_large(request, response):
+                return codes.request_entity_too_large
 
-        # 405 Method Not Allowed
+        # ### 405 Method Not Allowed
         if self.method_not_allowed(request, response):
             return codes.method_not_allowed
 
-        # 406 Not Acceptable
+        # ### 406 Not Acceptable
         # Checks Accept and Accept-* headers
         if self.not_acceptable(request, response):
             return codes.not_acceptable
 
-        # ## Conditional Requests
-        # _Applies to GET, HEAD, PUT, PATCH, DELETE_.
+        # ### 412 Precondition Failed
+        # Conditional requests applies to GET, HEAD, PUT, and PATCH.
         # For GET and HEAD, the request checks the either the entity changed
         # since the last time it requested it, `If-Modified-Since`, or if the
         # entity tag (ETag) has changed, `If-None-Match`.
-        #
-        etag, last_modified = None, None
 
+        # ### 428 Precondition Required
+        # Prevents the "lost udpate" problem and requires client to confirm
+        # the state of the resource has not changed since the last `GET`
+        # request. This applies to `PUT` and `PATCH` requests.
+        if request.method == methods.put or request.method == methods.delete:
+            if self.precondition_required(request, response, *args, **kwargs):
+                # HTTP/1.1
+                response.headers['Cache-Control'] = 'no-cache'
+                # HTTP/1.0
+                response.headers['Pragma'] = 'no-cache'
+                return codes.precondition_required
+
+
+        # ETags are enabled, check for conditional request headers
         if self.use_etags:
             etag = self.get_etag(request, *args, **kwargs)
 
-        if self.use_last_modified:
-            modified = self.get_last_modified(request, *args, **kwargs)
-
-        # Check for conditional GET or HEAD request
-        if request.method == methods.get or request.method == methods.head:
-            if self.use_etags:
+            # Check for conditional GET or HEAD request
+            if request.method == methods.get or request.method == methods.head:
                 if 'if-none-match' in request.headers:
                     response.headers['etag'] = etag
                     if request.headers['if-none-match'] == etag:
                         return codes.not_modified
-            elif self.use_last_modified:
+ 
+            # Check for conditional PUT or PATCH request
+            elif request.method == methods.put or request.method == methods.patch:
+                if 'if-match' in request.headers:
+                    if request.headers['if-match'] != etag:
+                        return codes.precondition_failed
+
+        elif self.use_last_modified:
+            modified = self.get_last_modified(request, *args, **kwargs)
+            last_modified = http_date(modified)
+
+            # Check for conditional GET or HEAD request
+            if request.method == methods.get or request.method == methods.head:
                 if 'if-modified-since' in request.headers:
-                    last_modified = http_date(modified)
                     response.headers['last-modified'] = last_modified
                     if request.headers['if-modified-since'] == last_modified:
                         return codes.not_modified
 
-        # Check for conditional PUT or DELETE request
-        elif request.method in (methods.put, methods.delete, methods.patch):
-            pass
+            # Check for conditional PUT or PATCH request
+            elif request.method == methods.put or request.method == methods.patch:
+                if 'if-unmodified-since' in request.headers:
+                    if request.headers['if-unmodified-since'] != last_modified:
+                        return codes.precondition_failed
 
-        # 404 Not Found
+
+        # ### 404 Not Found
         if self.not_found(request, response):
             return codes.not_found
 
-        # 410 Gone
+        # ### 410 Gone
         if self.gone(request, response, *args, **kwargs):
             return codes.gone
 
-        # 412 Precondition Failed
         if self.precondition_failed(request, response):
             return codes.precondition_failed
 
@@ -229,6 +292,7 @@ class Resource(object):
         response.headers['Cache-Control'] = 'no-cache'
         # HTTP/1.0
         response.headers['Pragma'] = 'no-cache'
+
 
 
     # ## Response Status Code Handlers
@@ -265,11 +329,17 @@ class Resource(object):
     def forbidden(self, request, response, *args, **kwargs):
         return False
 
-    # ### Request Entity Too Large
-    # Check if the request entity is too large to process. Default is
-    # a no-op.
-    def request_entity_too_large(self, request, response):
+    # ### Too Many Requests
+    # Checks if this request is rate limited. Default is a no-op.
+    def too_many_requests(self, request, response, *args, **kwargs):
         return False
+
+    # ### Request Entity Too Large
+    # Check if the request entity is too large to process.
+    def request_entity_too_large(self, request, response):
+        if self.max_request_entity_length:
+            if self.max_request_entity_length > request.content_length:
+                return True
 
     # ### Method Not Allowed
     # Check if the request method is not allowed.
@@ -330,10 +400,7 @@ class Resource(object):
         return False
 
 
-    # ## Helper Methods
-    # Various methods that do the heavy lifting.
-
-    # ### Request Accept-* handlers
+    # ## Request Accept-* handlers
     # Checks if the requested `Accept` mimetype is supported.
     def accept_type_supported(self, request, response):
         for mt in request.accept_mimetypes:
@@ -365,42 +432,52 @@ class Resource(object):
         return True
 
 
-    # ### Conditionl Request Handlers
+    # ## Conditionl Request Handlers
+
+    def precondition_required(self, request, response, *args, **kwargs):
+        if self.require_conditional_request:
+            if self.use_etags and 'if-match' not in request.headers:
+                response.data = 'This request is required to be conditional; '\
+                    'try using "If-Match"'
+                return True
+            if self.use_last_modified and 'if-unmodified-since' not in request.headers:
+                response.data = 'This request is required to be conditional; '\
+                    'try using "If-Unmodified-Since"'
+                return True
+        return False
 
     def precondition_failed(request, response, *args, **kwargs):
         pass
 
+    # ### Calculate ETag
+    # Calculates an etag for the requested entity.
+    # Provides the client an entity tag for future conditional
+    # requests.
+    # For GET and HEAD requests the `If-None-Match` header may be
+    # set to check if the entity has changed since the last request.
+    # For PUT, PATCH, and DELETE requests, the `If-Match` header may be
+    # set to ensure the entity is the same as the cllient's so the current
+    # operation is valid (optimistic concurrency).
     def get_etag(self, request, *args, **kwargs):
-        """Calculates an etag for the requested entity.
+        pass
 
-        Provides the client an entity tag for future conditional
-        requests.
-
-        For GET and HEAD requests the `If-None-Match` header may be
-        set to check if the entity has changed since the last request.
-
-        For PUT, PATCH, and DELETE requests, the `If-Match` header may be
-        set to ensure the entity is the same as the cllient's so the current
-        operation is valid (optimistic concurrency).
-        """
-
+    # ### Calculate Last Modified Datetime
+    # Calculates the last modified time for the requested entity.
+    # Provides the client the last modified of the entity for future
+    # conditional requests.
     def get_last_modified(self, request, *args, **kwargs):
-        """Calculates the last modified time for the requested entity.
+        pass
 
-        Provides the client the last modified of the entity for future
-        conditional requests.
-        """
-
+    # ### Calculate Expiry Datetime
+    # Gets the expiry date and time for the requested entity.
+    # Informs the client when the entity will be invalid. This is most
+    # useful for clients to only refresh when they need to, otherwise the
+    # client's local cache is used.
     def get_expiry(self, request, *args, **kwargs):
-        """Gets the expiry date and time for the requested entity.
-
-        Informs the client when the entity will be invalid. This is most
-        useful for clients to only refresh when they need to, otherwise the
-        client's local cache is used.
-        """
+        pass
 
 
-    # Entity Content-* handlers
+    # ## Entity Content-* handlers
     def content_type_supported(self, request, response, *args, **kwargs):
         return request.mimetype in self.supported_content_types
 

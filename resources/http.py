@@ -48,6 +48,7 @@ class StatusCode(object):
     def __eq__(self, obj):
         return obj == self.status_code
 
+
 methods = AttrDict(
     'HTTP Methods',
 
@@ -108,6 +109,8 @@ codes = AttrDict(
     REQUESTED_RANGE_NOT_SATISFIABLE = StatusCode(416, 'Requested Range Not Satisfiable'),
     EXPECTATION_FAILED = StatusCode(417, 'Expectation Failed'),
     UNPROCESSABLE_ENTITY = StatusCode(422, 'Unprocessable Entity'),
+    PRECONDITION_REQUIRED = StatusCode(428, 'Precondition Required'),
+    TOO_MANY_REQUESTS = StatusCode(429, 'Too Many Requests'),
 
     # Server Errors 5xx
     INTERNAL_SERVER_ERROR = StatusCode(500, 'Internal Server Error'),
