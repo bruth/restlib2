@@ -1,0 +1,10 @@
+[run]
+include =
+    resources/models.py
+    resources/http.py
+    resources/tests/cases.py
+
+source = resources
+
+[html]
+directory = docs/coverage

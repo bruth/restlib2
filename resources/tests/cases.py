@@ -2,6 +2,7 @@ import unittest
 from werkzeug.test import EnvironBuilder
 from werkzeug.wrappers import Request
 from resources.models import Resource
+from resources.http import codes
 
 class ResourceTestCase(unittest.TestCase):
     def setUp(self):
@@ -46,8 +47,9 @@ class ResourceTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_service_unavailable(self):
+        "Test service availability."
         class IndefiniteUnavailableResource(Resource):
-            offline = True
+            unavailable = True
 
         resource = IndefiniteUnavailableResource()
         environ = EnvironBuilder(**self.params)
@@ -57,7 +59,7 @@ class ResourceTestCase(unittest.TestCase):
         self.assertTrue('retry-after' not in response.headers)
 
         class DeltaUnavailableResource(Resource):
-            offline = 20
+            unavailable = 20
 
         resource = DeltaUnavailableResource()
         environ = EnvironBuilder(**self.params)
@@ -72,7 +74,7 @@ class ResourceTestCase(unittest.TestCase):
         future = datetime.now() + timedelta(seconds=20)
 
         class DatetimeUnavailableResource(Resource):
-            offline = future
+            unavailable = future
 
         resource = DatetimeUnavailableResource()
         environ = EnvironBuilder(**self.params)
@@ -81,32 +83,34 @@ class ResourceTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.headers['retry-after'], http_date(future))
 
-    def test_content_type(self):
-        "Test trivial read-only resource with GET, HEAD, and OPTIONS."
+    def test_unsupported_media_type(self):
+        "Test various Content-* combinations."
         class ReadOnlyResource(Resource):
-            def get(self, request, response, *args, **kwargs):
-                return '{}'
+            def post(self, request, response, *args, **kwargs):
+                response.status = codes.no_content
 
         resource = ReadOnlyResource()
 
-        self.params['method'] = 'OPTIONS'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
-        response = resource(request)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers['allow'], 'GET, HEAD, OPTIONS')
+        self.params['method'] = 'POST'
 
-        self.params['method'] = 'GET'
+        # Works..
         self.params['content_type'] = 'application/json; charset=utf-8'
+        self.params['data'] = '{"message": "hello world"}'
         environ = EnvironBuilder(**self.params)
         request = environ.get_request(cls=Request)
         response = resource(request)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers['content-length'], '2')
-        self.assertEqual(response.data, '{}')
+        self.assertEqual(response.status_code, 204)
 
-    def test_no_accept_headers(self):
-        "No Accept-* should pass through."
+        # Unsupported Media Type
+        self.params['content_type'] = 'application/xml'
+        self.params['data'] = '<message>hello world</message>'
+        environ = EnvironBuilder(**self.params)
+        request = environ.get_request(cls=Request)
+        response = resource(request)
+        self.assertEqual(response.status_code, 415)
+
+    def test_not_acceptable(self):
+        "Test various Accept-* combinations."
         class ReadOnlyResource(Resource):
             def get(self, request, response, *args, **kwargs):
                 return '{}'
@@ -120,20 +124,48 @@ class ResourceTestCase(unittest.TestCase):
         response = resource(request)
         self.assertEqual(response.status_code, 200)
 
-    def test_accept_headers(self):
-        "Process request with Accept-* headers."
-        class ReadOnlyResource(Resource):
-            def get(self, request, response, *args, **kwargs):
-                return '{}'
+        self.params['headers'] = {'Accept': 'application/json,application/xml;q=0.9,*/*;q=0.8'}
+        environ = EnvironBuilder(**self.params)
+        request = environ.get_request(cls=Request)
+        response = resource(request)
+        self.assertEqual(response.status_code, 200)
 
-        resource = ReadOnlyResource()
-
-        self.params['method'] = 'GET'
-        self.params['headers'] = {'Accept': 'application/xml'}
+        self.params['headers'] = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
         environ = EnvironBuilder(**self.params)
         request = environ.get_request(cls=Request)
         response = resource(request)
         self.assertEqual(response.status_code, 406)
+
+        self.params['headers'] = {'Accept': '*/*'}
+        environ = EnvironBuilder(**self.params)
+        request = environ.get_request(cls=Request)
+        response = resource(request)
+        self.assertEqual(response.status_code, 406)
+
+    def test_request_entity_too_large(self):
+        "Test request entity too large."
+        class TinyResource(Resource):
+            max_request_entity_length = 20
+
+            def post(self, request, response, *args, **kwargs):
+                response.status = codes.no_content
+
+        resource = TinyResource()
+
+        self.params['method'] = 'POST'
+        self.params['content_type'] = 'application/json'
+
+        self.params['data'] = '{"message": "hello"}'
+        environ = EnvironBuilder(**self.params)
+        request = environ.get_request(cls=Request)
+        response = resource(request)
+        self.assertEqual(response.status_code, 204)
+
+        self.params['data'] = '{"message": "hello world"}'
+        environ = EnvironBuilder(**self.params)
+        request = environ.get_request(cls=Request)
+        response = resource(request)
+        self.assertEqual(response.status_code, 413)
 
     def test_rate_limit(self):
         """Test a global rate limiting implementation.
@@ -149,11 +181,11 @@ class ResourceTestCase(unittest.TestCase):
             rate_limit_seconds = 2
 
             # Keep track of requests globally for the resource.. only for test
-            # purposes
+            # purposes, not thread-safe
             request_frame_start = datetime.now()
             request_count = 0
 
-            def too_many_requests(self, request, response, *args, **kwargs):
+            def check_too_many_requests(self, request, response, *args, **kwargs):
                 interval = (datetime.now() - self.request_frame_start).seconds
                 self.request_count += 1
 
