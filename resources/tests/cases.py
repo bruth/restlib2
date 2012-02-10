@@ -34,17 +34,20 @@ class ResourceTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 405)
         self.assertEqual(response.headers['allow'], 'OPTIONS')
 
-        class MethodsResource(Resource):
-            allowed_methods = ('GET',)
+        class PatchResource(Resource):
+            allowed_methods = ('PATCH', 'OPTIONS')
 
-            def get(self, request, response, *args, **kwargs):
-                return ''
+            def patch(self, request, response):
+                response.status = codes.no_content
 
-        resource = MethodsResource()
+        resource = PatchResource()
+
+        self.params['method'] = 'OPTIONS'
         environ = EnvironBuilder(**self.params)
         request = environ.get_request(cls=Request)
         response = resource(request)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['Accept-Patch'], 'application/json')
 
     def test_service_unavailable(self):
         "Test service availability."

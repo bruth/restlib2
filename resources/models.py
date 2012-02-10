@@ -45,6 +45,12 @@ class ResourceMetaclass(type):
 
         new_cls.allowed_methods = tuple(allowed_methods)
 
+        if not new_cls.supported_content_types:
+            new_cls.supported_content_types = new_cls.supported_accept_types
+
+        if not new_cls.supported_patch_types:
+            new_cls.supported_patch_types = new_cls.supported_content_types
+
         return new_cls
 
 
@@ -79,6 +85,9 @@ class ResourceMetaclass(type):
 # cases should be assumed by clients as _black box_, neither safe nor idempotent.
 # If updating an existing resource, it is more appropriate to use `PUT`.
 #
+# [Section 7.2.1][5] defines that `GET`, `HEAD`, `POST`, and 'TRACE' should have
+# a payload for status code of 200 OK. If not supplied, a different 2xx code may
+# be more appropriate.
 #
 # [0]: http://code.google.com/p/http-headers-status/downloads/detail?name=http-headers-status%20v3%20draft.png
 # [1]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-2
@@ -122,7 +131,7 @@ class Resource(object):
     # header for verifying the operation applies to the current state of the
     # resource on the server. This must be used in conjunction with either
     # the `use_etags` or `use_last_modified` option to take effect.
-    require_conditional_request = True
+    require_conditional_request = False
 
     # ### Use ETags
     # If `True`, the `ETag` header will be set on responses and conditional
@@ -145,9 +154,14 @@ class Resource(object):
     # ### Supported _Content-Type_ Mimetypes
     # Define a list of mimetypes supported for decoding request entity bodies.
     # This is independent of the mimetypes encoders for request bodies.
-    # Default to `('application/json',)`
-    # _See also: `supported_accept_types`_
-    supported_content_types = ('application/json',)
+    # Defaults to mimetypes defined in `supported_accept_types`.
+    supported_content_types = None
+
+    # ### Supported PATCH Mimetypes
+    # Define a list of mimetypes supported for decoding request entity bodies
+    # for `PATCH` requests. Defaults to mimetypes defined in
+    # `supported_content_types`.
+    supported_patch_types = None
 
 
     # ## Initialize Once, Process Many
@@ -274,7 +288,7 @@ class Resource(object):
         # since the last time it requested it, `If-Modified-Since`, or if the
         # entity tag (ETag) has changed, `If-None-Match`.
         if request.method == methods.put or request.method == methods.patch:
-            if self.check_precondition_failed(self, request, response, *args, **kwargs):
+            if self.check_precondition_failed(request, response, *args, **kwargs):
                 response.status = codes.precondition_failed
                 return
 
@@ -319,6 +333,11 @@ class Resource(object):
     # ### _OPTIONS_ Request Handler
     # Default handler _OPTIONS_ requests.
     def options(self, request, response, *args, **kwargs):
+        # See [RFC 5789][0]
+        # [0]: http://tools.ietf.org/html/rfc5789#section-3.1
+        if 'PATCH' in self.allowed_methods:
+            response.headers['Accept-Patch'] = ', '.join(self.supported_patch_types)
+
         response.headers['Allow'] = ', '.join(sorted(self.allowed_methods))
         response.headers['Content-Length'] = 0
         # HTTP/1.1
@@ -434,11 +453,12 @@ class Resource(object):
             return True
         return False
 
-    def check_precondition_failed(request, response, *args, **kwargs):
+    def check_precondition_failed(self, request, response, *args, **kwargs):
         # ETags are enabled. Check for conditional request headers. The current
         # ETag value is used for the conditional requests. After the request
         # method handler has been processed, the new ETag will be calculated.
         if self.use_etags and 'if-match' in request.headers:
+            etag = self.get_etag(request, *args, **kwargs)
             if request.headers['if-match'] != etag:
                 return True
 
@@ -447,7 +467,8 @@ class Resource(object):
         # requests. After the request method handler has been processed, the new
         # Last-Modified datetime will be returned.
         if self.use_last_modified and 'if-unmodified-since' in request.headers:
-            if request.headers['if-unmodified-since'] != last_modified:
+            last_modified = self.get_last_modified(request, *args, **kwargs)
+            if request.headers['if-unmodified-since'] != http_date(last_modified):
                 return True
 
         return False
