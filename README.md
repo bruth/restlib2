@@ -65,8 +65,7 @@ Examples
 import json
 
 class Author(Resource):
-    never_cache = True
-    accept_mimetypes = ['application/json']
+    supported_accept_types = ['application/json']
 
     def get(self, request, response):
         return json.dumps([{
@@ -80,16 +79,14 @@ class Author(Resource):
         }])
 ```
 
-* ``never_cache`` is a flag that ensures the resource is refreshed for
-  every request
-* ``accept_mimetypes`` defines the supported encoding types and rejects
+* ``supported_accept_types`` defines the supported encoding types and rejects
   requests only does not accept `application/json`
 * Since the `get` method is only defined, `post`, `put`, `patch`, and
   `delete` are not allowed for this resource. `head` is accessible if
   `get` is defined and `options` is always available unless the service
   is set as unavailable
 
-Embedded Resources
+Composite Resources
 ------------------
 When designing a REST API, an important decision to make up front is
 whether a _chatty_ service is preferred, or a service that requires

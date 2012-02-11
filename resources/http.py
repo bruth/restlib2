@@ -1,51 +1,16 @@
 from .structures import AttrDict
 
-class Method(object):
-    """An HTTP method which defines whether this method is safe and
-    idempotent.
-
-    ref: http://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
-    """
-    def __init__(self, method, safe, idempotent, cacheable):
-        self.method = method
-        self.safe = safe
-        self.idempotent = idempotent
-        self.cacheable = cacheable
-
-    def __str__(self):
-        return self.method
-
-    def __repr__(self):
-        props = []
-
-        if self.safe:
-            props.append('Safe')
-        if self.idempotent:
-            props.append('Idempotent')
-        if self.cacheable:
-            props.append('Cacheable')
-
-        if props:
-            return '<Method: %s (%s)>' % (str(self), ', '.join(props))
-        return '<Method: %s>' % str(self)
-
-    def __eq__(self, obj):
-        if isinstance(obj, basestring):
-            return obj == str(self)
-        return super(Method, self).__cmp__(obj)
-
-
 methods = AttrDict(
     'HTTP Methods',
 
-    GET = Method('GET', True, True, True),
-    HEAD = Method('HEAD', True, True, True),
-    OPTIONS = Method('OPTIONS', True, True, False),
-    POST = Method('POST', False, False, False),
-    PUT = Method('PUT', False, True, False),
-    DELETE = Method('DELETE', False, True, False),
+    GET = 'GET',
+    HEAD = 'HEAD',
+    OPTIONS = 'OPTIONS',
+    POST = 'POST',
+    PUT = 'PUT',
+    DELETE = 'DELETE',
     # PATCH Method introduced; ref: http://tools.ietf.org/html/rfc5789
-    PATCH = Method('PATCH', False, False, False),
+    PATCH = 'PATCH',
 )
 
 codes = AttrDict(

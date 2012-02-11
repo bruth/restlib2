@@ -9,6 +9,7 @@ usable = lambda x, y: callable(getattr(x, y, None))
 # ## Resource Metaclass
 # Sets up a few helper components for the `Resource` class.
 class ResourceMetaclass(type):
+
     def __new__(cls, name, bases, attrs):
 
         # Create the new class as is to start. Subclass attributes can be
@@ -181,6 +182,12 @@ class Resource(object):
 
         return response
 
+    # ## Request Programatically
+    # For composite resources, `resource.apply` can be used on related resources
+    # with the original `request`.
+    def apply(self, request, *args, **kargs):
+        pass
+
     def process(self, request, response, *args, **kwargs):
         # TODO keep track of a list of request headers used to
         # determine the resource representation for the 'Vary'
@@ -241,9 +248,10 @@ class Resource(object):
 
             # ### 413 Request Entity Too Large
             # Check if the entity is too large for processing
-            if self.max_request_entity_length and self.check_request_entity_too_large(request, response):
-                response.status = codes.request_entity_too_large
-                return
+            if self.max_request_entity_length:
+                if self.check_request_entity_too_large(request, response):
+                    response.status = codes.request_entity_too_large
+                    return
 
         # ### 405 Method Not Allowed
         if self.check_method_not_allowed(request, response):
