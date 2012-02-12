@@ -1,53 +1,41 @@
 import unittest
-from werkzeug.test import EnvironBuilder
-from werkzeug.wrappers import Request
+from calendar import timegm
+from django.test.client import RequestFactory
 from resources.models import Resource
 from resources.http import codes
 
 class ResourceTestCase(unittest.TestCase):
     def setUp(self):
-        self.params = dict(
-            query_string = None,
-            method = 'GET',
-            input_stream = None,
-            content_type = '',
-            content_length = None,
-            headers = None,
-            data = None,
-        )
+        self.factory = RequestFactory()
 
     def test_default(self):
         "Tests for the default Resource which is very limited."
         resource = Resource()
 
-        self.params['method'] = 'OPTIONS'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        self.assertEqual(resource.allowed_methods, ('OPTIONS',))
+
+        request = self.factory.request(REQUEST_METHOD='OPTIONS')
         response = resource(request)
         self.assertEqual(response.status_code, 200)
 
         # Try another non-default method
-        self.params['method'] = 'GET'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, 405)
-        self.assertEqual(response.headers['allow'], 'OPTIONS')
+        self.assertEqual(response['Allow'], 'OPTIONS')
 
         class PatchResource(Resource):
             allowed_methods = ('PATCH', 'OPTIONS')
 
             def patch(self, request, response):
-                response.status = codes.no_content
+                response.status_code = codes.no_content
 
         resource = PatchResource()
 
-        self.params['method'] = 'OPTIONS'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request(REQUEST_METHOD='OPTIONS')
         response = resource(request)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers['Accept-Patch'], 'application/json')
+        self.assertEqual(response['Accept-Patch'], 'application/json')
 
     def test_service_unavailable(self):
         "Test service availability."
@@ -55,24 +43,24 @@ class ResourceTestCase(unittest.TestCase):
             unavailable = True
 
         resource = IndefiniteUnavailableResource()
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+
+        request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, 503)
-        self.assertTrue('retry-after' not in response.headers)
+        self.assertTrue('Retry-After' not in response)
 
         class DeltaUnavailableResource(Resource):
             unavailable = 20
 
         resource = DeltaUnavailableResource()
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+
+        request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.headers['retry-after'], 20)
+        self.assertEqual(response['Retry-After'], '20')
 
         from datetime import datetime, timedelta
-        from werkzeug.http import http_date
+        from django.utils.http import http_date
 
         future = datetime.now() + timedelta(seconds=20)
 
@@ -80,35 +68,27 @@ class ResourceTestCase(unittest.TestCase):
             unavailable = future
 
         resource = DatetimeUnavailableResource()
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+
+        request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.headers['retry-after'], http_date(future))
+        self.assertEqual(response['Retry-After'], http_date(timegm(future.utctimetuple())))
 
     def test_unsupported_media_type(self):
         "Test various Content-* combinations."
         class ReadOnlyResource(Resource):
             def post(self, request, response, *args, **kwargs):
-                response.status = codes.no_content
+                response.status_code = codes.no_content
 
         resource = ReadOnlyResource()
 
-        self.params['method'] = 'POST'
-
         # Works..
-        self.params['content_type'] = 'application/json; charset=utf-8'
-        self.params['data'] = '{"message": "hello world"}'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.post('/', data='{"message": "hello world"}', content_type='application/json; charset=utf-8')
         response = resource(request)
         self.assertEqual(response.status_code, 204)
 
         # Unsupported Media Type
-        self.params['content_type'] = 'application/xml'
-        self.params['data'] = '<message>hello world</message>'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.post('/', data='<message>hello world</message>', content_type='application/xml')
         response = resource(request)
         self.assertEqual(response.status_code, 415)
 
@@ -121,29 +101,21 @@ class ResourceTestCase(unittest.TestCase):
         resource = ReadOnlyResource()
 
         # Non-explicit
-        self.params['method'] = 'GET'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, 200)
 
-        self.params['headers'] = {'Accept': 'application/json,application/xml;q=0.9,*/*;q=0.8'}
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request(HTTP_ACCEPT='application/json,application/xml;q=0.9,*/*;q=0.8')
         response = resource(request)
         self.assertEqual(response.status_code, 200)
 
-        self.params['headers'] = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request(HTTP_ACCEPT='text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0')
         response = resource(request)
         self.assertEqual(response.status_code, 406)
 
-        self.params['headers'] = {'Accept': '*/*'}
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request(HTTP_ACCEPT='*/*')
         response = resource(request)
-        self.assertEqual(response.status_code, 406)
+        self.assertEqual(response.status_code, 200)
 
     def test_request_entity_too_large(self):
         "Test request entity too large."
@@ -151,22 +123,15 @@ class ResourceTestCase(unittest.TestCase):
             max_request_entity_length = 20
 
             def post(self, request, response, *args, **kwargs):
-                response.status = codes.no_content
+                response.status_code = codes.no_content
 
         resource = TinyResource()
 
-        self.params['method'] = 'POST'
-        self.params['content_type'] = 'application/json'
-
-        self.params['data'] = '{"message": "hello"}'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.post('/', data='{"message": "hello"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, 204)
 
-        self.params['data'] = '{"message": "hello world"}'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.post('/', data='{"message": "hello world"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, 413)
 
@@ -206,9 +171,7 @@ class ResourceTestCase(unittest.TestCase):
 
         resource = RateLimitResource()
 
-        self.params['method'] = 'OPTIONS'
-        environ = EnvironBuilder(**self.params)
-        request = environ.get_request(cls=Request)
+        request = self.factory.request(REQUEST_METHOD='OPTIONS')
 
         for _ in xrange(0, 10):
             response = resource(request)

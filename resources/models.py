@@ -1,7 +1,10 @@
+import mimeparse
+# http://mail.python.org/pipermail/python-list/2010-March/1239510.html
+from calendar import timegm
 from datetime import datetime
-from werkzeug.wrappers import Response
-from werkzeug.http import http_date
-from .http import codes, methods
+from django.http import HttpResponse
+from django.utils.http import http_date
+from http import codes, methods
 
 # Convenience function for checking for existent, callable methods
 usable = lambda x, y: callable(getattr(x, y, None))
@@ -172,7 +175,7 @@ class Resource(object):
 
         # Initilize a new response for this request. Passing the response along
         # the request cycle allows for gradual modification of the headers.
-        response = Response()
+        response = HttpResponse()
 
         # Process the request, this should modify the `response`
         output = self.process(request, response, *args, **kwargs)
@@ -197,7 +200,7 @@ class Resource(object):
         # The server does not need to be unavailable for a resource to be
         # unavailable...
         if self.check_service_unavailable(request, response):
-            response.status = codes.service_unavailable
+            response.status_code = codes.service_unavailable
             return
 
         # ### 414 Request URI Too Long _(not implemented)_
@@ -210,13 +213,13 @@ class Resource(object):
         # ### 401 Unauthorized
         # Check if the request is authorized to access this resource.
         if self.check_unauthorized(request, response):
-            response.status = codes.unauthorized
+            response.status_code = codes.unauthorized
             return
 
         # ### 403 Forbidden
         # Check if this resource is forbidden for the request.
         if self.check_forbidden(request, response):
-            response.status = codes.forbidden
+            response.status_code = codes.forbidden
             return
 
         # ### 501 Not Implemented _(not implemented)_
@@ -228,7 +231,7 @@ class Resource(object):
         # falsy values to be checked.
         if self.rate_limit_count and self.rate_limit_seconds:
             if self.check_too_many_requests(request, response, *args, **kwargs):
-                response.status = codes.too_many_requests
+                response.status_code = codes.too_many_requests
                 return
 
         # ### Process an _OPTIONS_ request
@@ -238,42 +241,42 @@ class Resource(object):
 
         # ## Request Entity Checks
         # Only perform these checks if the request has supplied a body.
-        if request.content_length:
+        if 'CONTENT_LENGTH' in request.META:
 
             # ### 415 Unsupported Media Type
             # Check if the entity `Content-Type` supported for decoding.
             if self.check_unsupported_media_type(request, response):
-                response.status = codes.unsupported_media_type
+                response.status_code = codes.unsupported_media_type
                 return
 
             # ### 413 Request Entity Too Large
             # Check if the entity is too large for processing
             if self.max_request_entity_length:
                 if self.check_request_entity_too_large(request, response):
-                    response.status = codes.request_entity_too_large
+                    response.status_code = codes.request_entity_too_large
                     return
 
         # ### 405 Method Not Allowed
         if self.check_method_not_allowed(request, response):
-            response.status = codes.method_not_allowed
+            response.status_code = codes.method_not_allowed
             return
 
         # ### 406 Not Acceptable
         # Checks Accept and Accept-* headers
         if self.check_not_acceptable(request, response):
-            response.status = codes.not_acceptable
+            response.status_code = codes.not_acceptable
             return
 
         # ### 404 Not Found
         # Check if this resource exists.
         if self.check_not_found(request, response):
-            response.status = codes.not_found
+            response.status_code = codes.not_found
             return
 
         # ### 410 Gone
         # Check if this resource used to exist, but does not anymore.
         if self.check_gone(request, response, *args, **kwargs):
-            response.status = codes.gone
+            response.status_code = codes.gone
             return
 
         # ### 428 Precondition Required
@@ -284,10 +287,10 @@ class Resource(object):
             if request.method == methods.put or request.method == methods.patch:
                 if self.check_precondition_required(request, response, *args, **kwargs):
                     # HTTP/1.1
-                    response.headers['Cache-Control'] = 'no-cache'
+                    response['Cache-Control'] = 'no-cache'
                     # HTTP/1.0
-                    response.headers['Pragma'] = 'no-cache'
-                    response.status = codes.precondition_required
+                    response['Pragma'] = 'no-cache'
+                    response.status_code = codes.precondition_required
                     return
 
         # ### 412 Precondition Failed
@@ -297,22 +300,22 @@ class Resource(object):
         # entity tag (ETag) has changed, `If-None-Match`.
         if request.method == methods.put or request.method == methods.patch:
             if self.check_precondition_failed(request, response, *args, **kwargs):
-                response.status = codes.precondition_failed
+                response.status_code = codes.precondition_failed
                 return
 
         # Check for conditional GET or HEAD request
         if request.method == methods.get or request.method == methods.head:
-            if self.use_etags and 'if-none-match' in request.headers:
+            if self.use_etags and 'HTTP_IF_NONE_MATCH' in request.META:
                 etag = self.get_etag(request, *args, **kwargs)
-                if request.headers['if-none-match'] == etag:
-                    response.status = codes.not_modified
+                if request.META['HTTP_IF_NONE_MATCH'] == etag:
+                    response.status_code = codes.not_modified
                     return
 
-            if self.use_last_modified and 'if-modified-since' in request.headers:
+            if self.use_last_modified and 'HTTP_IF_MODIFIED_SINCE' in request.META:
                 modified = self.get_last_modified(request, *args, **kwargs)
                 last_modified = http_date(modified)
-                if request.headers['if-modified-since'] == last_modified:
-                    response.status = codes.not_modified
+                if request.META['HTTP_IF_MODIFIED_SINCE'] == last_modified:
+                    response.status_code = codes.not_modified
                     return
 
 
@@ -321,10 +324,10 @@ class Resource(object):
             response, *args, **kwargs)
 
         # TODO implement post request method handling header augmentation
-        if self.use_etags and 'etag' not in response.headers:
+        if self.use_etags and 'ETag' not in response:
             pass
 
-        elif self.use_last_modified and 'last-modified' not in request.headers:
+        elif self.use_last_modified and 'Last-Modified' not in request.META:
             pass
 
         return handler_output
@@ -336,7 +339,7 @@ class Resource(object):
     # a _GET_ handler must be defined.
     def head(self, request, response, *args, **kwargs):
         self.get(request, response, *args, **kwargs)
-        response.data = ''
+        response.content = ''
 
     # ### _OPTIONS_ Request Handler
     # Default handler _OPTIONS_ requests.
@@ -344,14 +347,14 @@ class Resource(object):
         # See [RFC 5789][0]
         # [0]: http://tools.ietf.org/html/rfc5789#section-3.1
         if 'PATCH' in self.allowed_methods:
-            response.headers['Accept-Patch'] = ', '.join(self.supported_patch_types)
+            response['Accept-Patch'] = ', '.join(self.supported_patch_types)
 
-        response.headers['Allow'] = ', '.join(sorted(self.allowed_methods))
-        response.headers['Content-Length'] = 0
+        response['Allow'] = ', '.join(sorted(self.allowed_methods))
+        response['Content-Length'] = 0
         # HTTP/1.1
-        response.headers['Cache-Control'] = 'no-cache'
+        response['Cache-Control'] = 'no-cache'
         # HTTP/1.0
-        response.headers['Pragma'] = 'no-cache'
+        response['Pragma'] = 'no-cache'
 
 
     # ## Response Status Code Handlers
@@ -370,12 +373,12 @@ class Resource(object):
             if type(self.unavailable) is int and self.unavailable > 0:
                 retry = self.unavailable
             elif type(self.unavailable) is datetime:
-                retry = http_date(self.unavailable)
+                retry = http_date(timegm(self.unavailable.utctimetuple()))
             else:
                 retry = None
 
             if retry:
-                response.headers['Retry-After'] = retry
+                response['Retry-After'] = retry
             return True
         return False
 
@@ -398,14 +401,14 @@ class Resource(object):
     # ### Request Entity Too Large
     # Check if the request entity is too large to process.
     def check_request_entity_too_large(self, request, response):
-        if request.content_length > self.max_request_entity_length:
+        if int(request.META['CONTENT_LENGTH']) > self.max_request_entity_length:
             return True
 
     # ### Method Not Allowed
     # Check if the request method is not allowed.
     def check_method_not_allowed(self, request, response):
         if request.method not in self.allowed_methods:
-            response.headers['Allow'] = ', '.join(sorted(self.allowed_methods))
+            response['Allow'] = ', '.join(sorted(self.allowed_methods))
             return True
         return False
 
@@ -414,17 +417,15 @@ class Resource(object):
     # `Content-Type` is set as the empty string, so ensure it is not falsy
     # when processing it.
     def check_unsupported_media_type(self, request, response):
-        if 'content-type' in request.headers and request.content_type:
+        if 'CONTENT_TYPE' in request.META:
             if not self.content_type_supported(request, response):
                 return True
 
-            if 'content-encoding' in request.headers:
-                if not self.content_encoding_supported(request, response):
-                    return True
+            if not self.content_encoding_supported(request, response):
+                return True
 
-            if 'content-language' in request.headers:
-                if not self.content_language_supported(request, response):
-                    return True
+            if not self.content_language_supported(request, response):
+                return True
 
         return False
 
@@ -434,15 +435,15 @@ class Resource(object):
         if not self.accept_type_supported(request, response):
             return True
 
-        if 'accept-language' in request.headers:
+        if 'HTTP_ACCEPT_LANGUAGE' in request.META:
             if not self.accept_language_supported(request, response):
                 return True
 
-        if 'accept-charset' in request.headers:
+        if 'HTTP_ACCEPT_CHARSET' in request.META:
             if not self.accept_charset_supported(request, response):
                 return True
 
-        if 'accept-encoding' in request.headers:
+        if 'HTTP_ACCEPT_ENCODING' in request.META:
             if not self.accept_encoding_supported(request, response):
                 return True
 
@@ -451,11 +452,11 @@ class Resource(object):
     # ### Precondition Required
     # Check if a conditional request is 
     def check_precondition_required(self, request, response, *args, **kwargs):
-        if self.use_etags and 'if-match' not in request.headers:
+        if self.use_etags and 'HTTP_IF_MATCH' not in request.META:
             response.data = 'This request is required to be conditional; '\
                 'try using "If-Match"'
             return True
-        if self.use_last_modified and 'if-unmodified-since' not in request.headers:
+        if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' not in request.META:
             response.data = 'This request is required to be conditional; '\
                 'try using "If-Unmodified-Since"'
             return True
@@ -465,18 +466,18 @@ class Resource(object):
         # ETags are enabled. Check for conditional request headers. The current
         # ETag value is used for the conditional requests. After the request
         # method handler has been processed, the new ETag will be calculated.
-        if self.use_etags and 'if-match' in request.headers:
+        if self.use_etags and 'HTTP_IF_MATCH' in request.META:
             etag = self.get_etag(request, *args, **kwargs)
-            if request.headers['if-match'] != etag:
+            if request.META['HTTP_IF_MATCH'] != etag:
                 return True
 
         # Last-Modified date enabled. check for conditional request headers. The
         # current modification datetime value is used for the conditional
         # requests. After the request method handler has been processed, the new
         # Last-Modified datetime will be returned.
-        if self.use_last_modified and 'if-unmodified-since' in request.headers:
+        if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' in request.META:
             last_modified = self.get_last_modified(request, *args, **kwargs)
-            if request.headers['if-unmodified-since'] != http_date(last_modified):
+            if request.META['HTTP_IF_UNMODIFIED_SINCE'] != http_date(last_modified):
                 return True
 
         return False
@@ -499,19 +500,25 @@ class Resource(object):
     # Checks if the requested `Accept` mimetype is supported. Defaults
     # to using the first specified mimetype in `supported_accept_types`.
     def accept_type_supported(self, request, response):
-        if 'accept' in request.headers:
-            for mime in request.accept_mimetypes.values():
-                if mime in self.supported_accept_types:
-                    response._accept_type = mime
-                    return True
+        if 'HTTP_ACCEPT' in request.META:
+            accept_type = request.META['HTTP_ACCEPT']
+            mimetypes = list(self.supported_accept_types)
+            mimetypes.reverse()
+            match = mimeparse.best_match(mimetypes, accept_type)
+
+            if match:
+                request._accept_type = match
+                return True
 
             # Only if `Accept` explicitly contains a `*/*;q=0.0`
             # does it preclude from returning a non-matching mimetype.
             # This may be desirable behavior (or not), so add this as an
             # option, e.g. `force_accept_type`
-            if not request.accept_mimetypes['*/*'] == 0:
+            if mimeparse.quality('*/*', accept_type) == 0:
                 return False
 
+        # If `supported_accept_types` is empty, it is assumed that the resource
+        # will return whatever it wants.
         if len(self.supported_accept_types):
             response._accept_type = self.supported_accept_types[0]
         return True
@@ -560,8 +567,18 @@ class Resource(object):
 
 
     # ## Entity Content-* handlers
+
+    # Check if the request Content-Type is supported by this resource
+    # for decoding.
     def content_type_supported(self, request, response, *args, **kwargs):
-        return request.mimetype in self.supported_content_types
+        content_type = request.META['CONTENT_TYPE']
+        mimetypes = list(self.supported_content_types)
+        mimetypes.reverse()
+        match = mimeparse.best_match(mimetypes, content_type)
+        if match:
+            request._content_type = match
+            return True
+        return False
 
     def content_encoding_supported(self, request, response, *args, **kwargs):
         return True

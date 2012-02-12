@@ -22,8 +22,8 @@
     </div>
     <div class='code'>
       <div class="highlight"><pre><span class="kn">import</span> <span class="nn">unittest</span>
-<span class="kn">from</span> <span class="nn">werkzeug.test</span> <span class="kn">import</span> <span class="n">EnvironBuilder</span>
-<span class="kn">from</span> <span class="nn">werkzeug.wrappers</span> <span class="kn">import</span> <span class="n">Request</span>
+<span class="kn">from</span> <span class="nn">calendar</span> <span class="kn">import</span> <span class="n">timegm</span>
+<span class="kn">from</span> <span class="nn">django.test.client</span> <span class="kn">import</span> <span class="n">RequestFactory</span>
 <span class="kn">from</span> <span class="nn">resources.models</span> <span class="kn">import</span> <span class="n">Resource</span>
 <span class="kn">from</span> <span class="nn">resources.http</span> <span class="kn">import</span> <span class="n">codes</span></pre></div>
     </div>
@@ -48,15 +48,7 @@
     </div>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">def</span> <span class="nf">setUp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
-            <span class="n">query_string</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
-            <span class="n">method</span> <span class="o">=</span> <span class="s">&#39;GET&#39;</span><span class="p">,</span>
-            <span class="n">input_stream</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
-            <span class="n">content_type</span> <span class="o">=</span> <span class="s">&#39;&#39;</span><span class="p">,</span>
-            <span class="n">content_length</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
-            <span class="n">headers</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
-            <span class="n">data</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
-        <span class="p">)</span></pre></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">factory</span> <span class="o">=</span> <span class="n">RequestFactory</span><span class="p">()</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-3'>
@@ -71,9 +63,9 @@
         <span class="s">&quot;Tests for the default Resource which is very limited.&quot;</span>
         <span class="n">resource</span> <span class="o">=</span> <span class="n">Resource</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;OPTIONS&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">resource</span><span class="o">.</span><span class="n">allowed_methods</span><span class="p">,</span> <span class="p">(</span><span class="s">&#39;OPTIONS&#39;</span><span class="p">,))</span>
+
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">REQUEST_METHOD</span><span class="o">=</span><span class="s">&#39;OPTIONS&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span></pre></div>
     </div>
@@ -86,12 +78,10 @@
       <p>Try another non-default method</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;GET&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+      <div class="highlight"><pre>        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">405</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;allow&#39;</span><span class="p">],</span> <span class="s">&#39;OPTIONS&#39;</span><span class="p">)</span></pre></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s">&#39;Allow&#39;</span><span class="p">],</span> <span class="s">&#39;OPTIONS&#39;</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-5'>
@@ -115,16 +105,14 @@
     </div>
     <div class='code'>
       <div class="highlight"><pre>            <span class="k">def</span> <span class="nf">patch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
-                <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">no_content</span>
+                <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">no_content</span>
 
         <span class="n">resource</span> <span class="o">=</span> <span class="n">PatchResource</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;OPTIONS&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">REQUEST_METHOD</span><span class="o">=</span><span class="s">&#39;OPTIONS&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;Accept-Patch&#39;</span><span class="p">],</span> <span class="s">&#39;application/json&#39;</span><span class="p">)</span></pre></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s">&#39;Accept-Patch&#39;</span><span class="p">],</span> <span class="s">&#39;application/json&#39;</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-7'>
@@ -151,11 +139,11 @@
             <span class="n">unavailable</span> <span class="o">=</span> <span class="bp">True</span>
 
         <span class="n">resource</span> <span class="o">=</span> <span class="n">IndefiniteUnavailableResource</span><span class="p">()</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">503</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="s">&#39;retry-after&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">)</span></pre></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="s">&#39;Retry-After&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">response</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-9'>
@@ -170,14 +158,14 @@
             <span class="n">unavailable</span> <span class="o">=</span> <span class="mi">20</span>
 
         <span class="n">resource</span> <span class="o">=</span> <span class="n">DeltaUnavailableResource</span><span class="p">()</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">503</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;retry-after&#39;</span><span class="p">],</span> <span class="mi">20</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s">&#39;Retry-After&#39;</span><span class="p">],</span> <span class="s">&#39;20&#39;</span><span class="p">)</span>
 
         <span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
-        <span class="kn">from</span> <span class="nn">werkzeug.http</span> <span class="kn">import</span> <span class="n">http_date</span>
+        <span class="kn">from</span> <span class="nn">django.utils.http</span> <span class="kn">import</span> <span class="n">http_date</span>
 
         <span class="n">future</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span></pre></div>
     </div>
@@ -194,11 +182,11 @@
             <span class="n">unavailable</span> <span class="o">=</span> <span class="n">future</span>
 
         <span class="n">resource</span> <span class="o">=</span> <span class="n">DatetimeUnavailableResource</span><span class="p">()</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">503</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s">&#39;retry-after&#39;</span><span class="p">],</span> <span class="n">http_date</span><span class="p">(</span><span class="n">future</span><span class="p">))</span></pre></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s">&#39;Retry-After&#39;</span><span class="p">],</span> <span class="n">http_date</span><span class="p">(</span><span class="n">timegm</span><span class="p">(</span><span class="n">future</span><span class="o">.</span><span class="n">utctimetuple</span><span class="p">())))</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-11'>
@@ -233,11 +221,9 @@
     </div>
     <div class='code'>
       <div class="highlight"><pre>            <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-                <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">no_content</span>
+                <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">no_content</span>
 
-        <span class="n">resource</span> <span class="o">=</span> <span class="n">ReadOnlyResource</span><span class="p">()</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;POST&#39;</span></pre></div>
+        <span class="n">resource</span> <span class="o">=</span> <span class="n">ReadOnlyResource</span><span class="p">()</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-14'>
@@ -248,10 +234,7 @@
       <p>Works..</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;content_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;application/json; charset=utf-8&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;{&quot;message&quot;: &quot;hello world&quot;}&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+      <div class="highlight"><pre>        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="s">&#39;{&quot;message&quot;: &quot;hello world&quot;}&#39;</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="s">&#39;application/json; charset=utf-8&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">204</span><span class="p">)</span></pre></div>
     </div>
@@ -264,10 +247,7 @@
       <p>Unsupported Media Type</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;content_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;application/xml&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;&lt;message&gt;hello world&lt;/message&gt;&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+      <div class="highlight"><pre>        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="s">&#39;&lt;message&gt;hello world&lt;/message&gt;&#39;</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="s">&#39;application/xml&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">415</span><span class="p">)</span></pre></div>
     </div>
@@ -317,29 +297,21 @@
       <p>Non-explicit</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;GET&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+      <div class="highlight"><pre>        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">()</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;headers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;Accept&#39;</span><span class="p">:</span> <span class="s">&#39;application/json,application/xml;q=0.9,*/*;q=0.8&#39;</span><span class="p">}</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">HTTP_ACCEPT</span><span class="o">=</span><span class="s">&#39;application/json,application/xml;q=0.9,*/*;q=0.8&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;headers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;Accept&#39;</span><span class="p">:</span> <span class="s">&#39;text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8&#39;</span><span class="p">}</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">HTTP_ACCEPT</span><span class="o">=</span><span class="s">&#39;text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">406</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;headers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;Accept&#39;</span><span class="p">:</span> <span class="s">&#39;*/*&#39;</span><span class="p">}</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">HTTP_ACCEPT</span><span class="o">=</span><span class="s">&#39;*/*&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">406</span><span class="p">)</span></pre></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-20'>
@@ -375,22 +347,15 @@
     </div>
     <div class='code'>
       <div class="highlight"><pre>            <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-                <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">no_content</span>
+                <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">no_content</span>
 
         <span class="n">resource</span> <span class="o">=</span> <span class="n">TinyResource</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;POST&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;content_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;application/json&#39;</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;{&quot;message&quot;: &quot;hello&quot;}&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="s">&#39;{&quot;message&quot;: &quot;hello&quot;}&#39;</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="s">&#39;application/json&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">204</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;{&quot;message&quot;: &quot;hello world&quot;}&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s">&#39;/&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="s">&#39;{&quot;message&quot;: &quot;hello world&quot;}&#39;</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="s">&#39;application/json&#39;</span><span class="p">)</span>
         <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="mi">413</span><span class="p">)</span></pre></div>
     </div>
@@ -487,9 +452,7 @@ i.e on the 3 second in this test</p>
 
         <span class="n">resource</span> <span class="o">=</span> <span class="n">RateLimitResource</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&#39;method&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;OPTIONS&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="n">EnvironBuilder</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-        <span class="n">request</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get_request</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Request</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factory</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">REQUEST_METHOD</span><span class="o">=</span><span class="s">&#39;OPTIONS&#39;</span><span class="p">)</span>
 
         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">):</span>
             <span class="n">response</span> <span class="o">=</span> <span class="n">resource</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
