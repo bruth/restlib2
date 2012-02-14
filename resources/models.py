@@ -1,10 +1,13 @@
 import mimeparse
 # http://mail.python.org/pipermail/python-list/2010-March/1239510.html
 from calendar import timegm
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.conf import settings
 from django.http import HttpResponse
-from django.utils.http import http_date
+from django.utils.http import http_date, parse_http_date
 from http import codes, methods
+
+EPOCH_DATE = datetime(1970, 1, 1, 0, 0, 0)
 
 # Convenience function for checking for existent, callable methods
 usable = lambda x, y: callable(getattr(x, y, None))
@@ -14,7 +17,6 @@ usable = lambda x, y: callable(getattr(x, y, None))
 class ResourceMetaclass(type):
 
     def __new__(cls, name, bases, attrs):
-
         # Create the new class as is to start. Subclass attributes can be
         # checked for in `attrs` and handled as necessary relative to the base
         # classes.
@@ -40,8 +42,8 @@ class ResourceMetaclass(type):
 
             for method in allowed_methods:
                 if not usable(new_cls, method.lower()):
-                    raise ValueError('The {} method is not defined for the '
-                        'resource {}'.format(method, new_cls.__name__))
+                    raise ValueError('The %s method is not defined for the '
+                        'resource %s' % (method, new_cls.__name__))
 
         # If `GET` is not allowed, remove `HEAD` method.
         if 'GET' not in allowed_methods and 'HEAD' in allowed_methods:
@@ -140,8 +142,8 @@ class Resource(object):
     # ### Use ETags
     # If `True`, the `ETag` header will be set on responses and conditional
     # requests are supported. This applies to _GET_, _HEAD_, _PUT_, _PATCH_
-    # and _DELETE_ requests.
-    use_etags = True
+    # and _DELETE_ requests. Defaults to Django's `USE_ETAGS` setting.
+    use_etags = settings.USE_ETAGS
 
     # ### Use Last Modified
     # If `True`, the `Last-Modified` header will be set on responses and
@@ -178,10 +180,10 @@ class Resource(object):
         response = HttpResponse()
 
         # Process the request, this should modify the `response`
-        output = self.process(request, response, *args, **kwargs)
+        content = self.process(request, response, *args, **kwargs)
 
-        if output is not None:
-            response.data = output
+        if content is not None:
+            response.content = content
 
         return response
 
@@ -300,6 +302,10 @@ class Resource(object):
         # entity tag (ETag) has changed, `If-None-Match`.
         if request.method == methods.put or request.method == methods.patch:
             if self.check_precondition_failed(request, response, *args, **kwargs):
+                # HTTP/1.1
+                response['Cache-Control'] = 'no-cache'
+                # HTTP/1.0
+                response['Pragma'] = 'no-cache'
                 response.status_code = codes.precondition_failed
                 return
 
@@ -307,14 +313,14 @@ class Resource(object):
         if request.method == methods.get or request.method == methods.head:
             if self.use_etags and 'HTTP_IF_NONE_MATCH' in request.META:
                 etag = self.get_etag(request, *args, **kwargs)
-                if request.META['HTTP_IF_NONE_MATCH'] == etag:
+                if request.META['HTTP_IF_NONE_MATCH'].strip('"') == etag:
                     response.status_code = codes.not_modified
                     return
 
             if self.use_last_modified and 'HTTP_IF_MODIFIED_SINCE' in request.META:
-                modified = self.get_last_modified(request, *args, **kwargs)
-                last_modified = http_date(modified)
-                if request.META['HTTP_IF_MODIFIED_SINCE'] == last_modified:
+                last_modified = self.get_last_modified(request, *args, **kwargs)
+                known_last_modified = EPOCH_DATE + timedelta(seconds=parse_http_date(request.META['HTTP_IF_MODIFIED_SINCE']))
+                if known_last_modified >= last_modified:
                     response.status_code = codes.not_modified
                     return
 
@@ -322,13 +328,6 @@ class Resource(object):
         # ### Call Request Method Handler
         handler_output = getattr(self, request.method.lower())(request,
             response, *args, **kwargs)
-
-        # TODO implement post request method handling header augmentation
-        if self.use_etags and 'ETag' not in response:
-            pass
-
-        elif self.use_last_modified and 'Last-Modified' not in request.META:
-            pass
 
         return handler_output
 
@@ -340,6 +339,7 @@ class Resource(object):
     def head(self, request, response, *args, **kwargs):
         self.get(request, response, *args, **kwargs)
         response.content = ''
+        response['Content-Length'] = 0
 
     # ### _OPTIONS_ Request Handler
     # Default handler _OPTIONS_ requests.
@@ -401,7 +401,7 @@ class Resource(object):
     # ### Request Entity Too Large
     # Check if the request entity is too large to process.
     def check_request_entity_too_large(self, request, response):
-        if int(request.META['CONTENT_LENGTH']) > self.max_request_entity_length:
+        if request.META['CONTENT_LENGTH'] > self.max_request_entity_length:
             return True
 
     # ### Method Not Allowed
@@ -453,12 +453,8 @@ class Resource(object):
     # Check if a conditional request is 
     def check_precondition_required(self, request, response, *args, **kwargs):
         if self.use_etags and 'HTTP_IF_MATCH' not in request.META:
-            response.data = 'This request is required to be conditional; '\
-                'try using "If-Match"'
             return True
         if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' not in request.META:
-            response.data = 'This request is required to be conditional; '\
-                'try using "If-Unmodified-Since"'
             return True
         return False
 
@@ -468,7 +464,7 @@ class Resource(object):
         # method handler has been processed, the new ETag will be calculated.
         if self.use_etags and 'HTTP_IF_MATCH' in request.META:
             etag = self.get_etag(request, *args, **kwargs)
-            if request.META['HTTP_IF_MATCH'] != etag:
+            if request.META['HTTP_IF_MATCH'].strip('"') != etag:
                 return True
 
         # Last-Modified date enabled. check for conditional request headers. The
@@ -477,7 +473,8 @@ class Resource(object):
         # Last-Modified datetime will be returned.
         if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' in request.META:
             last_modified = self.get_last_modified(request, *args, **kwargs)
-            if request.META['HTTP_IF_UNMODIFIED_SINCE'] != http_date(last_modified):
+            known_last_modified = EPOCH_DATE + timedelta(seconds=parse_http_date(request.META['HTTP_IF_UNMODIFIED_SINCE']))
+            if  known_last_modified != last_modified:
                 return True
 
         return False

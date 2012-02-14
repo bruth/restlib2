@@ -190,6 +190,102 @@ class ResourceTestCase(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
 
 
+    def test_precondition_required(self):
+        class PreconditionResource(Resource):
+            require_conditional_request = True
+            use_etags = True
+
+            def put(self, request, response):
+                return codes.no_content
+
+            def delete(self, request, response):
+                return codes.no_content
+
+            def get_etag(self, request, *args, **kwargs):
+                return 'abc123'
+
+
+        resource = PreconditionResource()
+
+        request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json')
+        response = resource(request)
+        self.assertEqual(response.status_code, 428)
+        self.assertEqual(response['Cache-Control'], 'no-cache')
+        self.assertEqual(response['Pragma'], 'no-cache')
+
+        request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json',
+                HTTP_IF_MATCH='abc123')
+        response = resource(request)
+        self.assertEqual(response.status_code, 200)
+
+    def test_precondition_failed(self):
+        class PreconditionResource(Resource):
+            use_etags = True
+
+            def put(self, request, response):
+                return codes.no_content
+
+            def get(self, request, response):
+                return codes.ok
+
+            def get_etag(self, request, *args, **kwargs):
+                return 'abc123'
+
+        resource = PreconditionResource()
+
+        request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json',
+                HTTP_IF_MATCH='"def456"')
+        response = resource(request)
+        self.assertEqual(response.status_code, 412)
+        self.assertEqual(response['Cache-Control'], 'no-cache')
+        self.assertEqual(response['Pragma'], 'no-cache')
+
+        request = self.factory.get('/', HTTP_IF_NONE_MATCH='"def456"')
+        response = resource(request)
+        self.assertEqual(response.status_code, 200)
+
+        request = self.factory.get('/', HTTP_IF_NONE_MATCH='"abc123"')
+        response = resource(request)
+        self.assertEqual(response.status_code, 304)
+
+        from datetime import datetime, timedelta
+        from django.utils.http import http_date
+
+        last_modified_date = datetime.now()
+
+        class PreconditionResource(Resource):
+            use_etags = False
+            use_last_modified = True
+
+            def put(self, request, response):
+                return codes.no_content
+
+            def get(self, request, response):
+                return codes.ok
+
+            def get_last_modified(self, request, *args, **kwargs):
+                return last_modified_date
+
+        resource = PreconditionResource()
+        
+        past_time = datetime.now() - timedelta(seconds=-10)
+        past_seconds = timegm(past_time.utctimetuple())
+        request = self.factory.put('/', data='{"message": "hello world"}',
+            content_type='application/json', HTTP_IF_UNMODIFIED_SINCE=http_date(past_seconds))
+        response = resource(request)
+        self.assertEqual(response.status_code, 412)
+        self.assertEqual(response['Cache-Control'], 'no-cache')
+        self.assertEqual(response['Pragma'], 'no-cache')
+
+        request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=http_date(timegm(datetime.now().utctimetuple())))
+        response = resource(request)
+        self.assertEqual(response.status_code, 200)
+
+        request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=http_date(timegm((last_modified_date-timedelta(seconds=-20)).utctimetuple())))
+        response = resource(request)
+        self.assertEqual(response.status_code, 304)
+
+
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(ResourceTestCase)
     unittest.TextTestRunner(verbosity=2).run(suite)

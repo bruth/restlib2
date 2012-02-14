@@ -33,10 +33,13 @@
     </div>
     <div class='code'>
       <div class="highlight"><pre><span class="kn">from</span> <span class="nn">calendar</span> <span class="kn">import</span> <span class="n">timegm</span>
-<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">django.conf</span> <span class="kn">import</span> <span class="n">settings</span>
 <span class="kn">from</span> <span class="nn">django.http</span> <span class="kn">import</span> <span class="n">HttpResponse</span>
-<span class="kn">from</span> <span class="nn">django.utils.http</span> <span class="kn">import</span> <span class="n">http_date</span>
-<span class="kn">from</span> <span class="nn">http</span> <span class="kn">import</span> <span class="n">codes</span><span class="p">,</span> <span class="n">methods</span></pre></div>
+<span class="kn">from</span> <span class="nn">django.utils.http</span> <span class="kn">import</span> <span class="n">http_date</span><span class="p">,</span> <span class="n">parse_http_date</span>
+<span class="kn">from</span> <span class="nn">http</span> <span class="kn">import</span> <span class="n">codes</span><span class="p">,</span> <span class="n">methods</span>
+
+<span class="n">EPOCH_DATE</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">1970</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-2'>
@@ -121,8 +124,8 @@ are said to be allowed are actually defined and callable.</p>
 
             <span class="k">for</span> <span class="n">method</span> <span class="ow">in</span> <span class="n">allowed_methods</span><span class="p">:</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">usable</span><span class="p">(</span><span class="n">new_cls</span><span class="p">,</span> <span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">()):</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;The {} method is not defined for the &#39;</span>
-                        <span class="s">&#39;resource {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">new_cls</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span></pre></div>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;The </span><span class="si">%s</span><span class="s"> method is not defined for the &#39;</span>
+                        <span class="s">&#39;resource </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">new_cls</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-8'>
@@ -270,10 +273,10 @@ the <code>use_etags</code> or <code>use_last_modified</code> option to take effe
       <h3>Use ETags</h3>
 <p>If <code>True</code>, the <code>ETag</code> header will be set on responses and conditional
 requests are supported. This applies to <em>GET</em>, <em>HEAD</em>, <em>PUT</em>, <em>PATCH</em>
-and <em>DELETE</em> requests.</p>
+and <em>DELETE</em> requests. Defaults to Django's <code>USE_ETAGS</code> setting.</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>    <span class="n">use_etags</span> <span class="o">=</span> <span class="bp">True</span></pre></div>
+      <div class="highlight"><pre>    <span class="n">use_etags</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">USE_ETAGS</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-16'>
@@ -365,10 +368,10 @@ the request cycle allows for gradual modification of the headers.</p>
       <p>Process the request, this should modify the <code>response</code></p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+      <div class="highlight"><pre>        <span class="n">content</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="n">response</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">output</span>
+        <span class="k">if</span> <span class="n">content</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">response</span><span class="o">.</span><span class="n">content</span> <span class="o">=</span> <span class="n">content</span>
 
         <span class="k">return</span> <span class="n">response</span></pre></div>
     </div>
@@ -670,9 +673,7 @@ entity tag (ETag) has changed, <code>If-None-Match</code>.</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre>        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="n">methods</span><span class="o">.</span><span class="n">put</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="n">methods</span><span class="o">.</span><span class="n">patch</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_precondition_failed</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-                <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">precondition_failed</span>
-                <span class="k">return</span></pre></div>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_precondition_failed</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-45'>
@@ -680,22 +681,10 @@ entity tag (ETag) has changed, <code>If-None-Match</code>.</p>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-45'>#</a>
       </div>
-      <p>Check for conditional GET or HEAD request</p>
+      <p>HTTP/1.1</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="n">methods</span><span class="o">.</span><span class="n">get</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="n">methods</span><span class="o">.</span><span class="n">head</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_etags</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_NONE_MATCH&#39;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
-                <span class="n">etag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_etag</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_NONE_MATCH&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">etag</span><span class="p">:</span>
-                    <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">not_modified</span>
-                    <span class="k">return</span>
-
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_last_modified</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_MODIFIED_SINCE&#39;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
-                <span class="n">modified</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_modified</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-                <span class="n">last_modified</span> <span class="o">=</span> <span class="n">http_date</span><span class="p">(</span><span class="n">modified</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_MODIFIED_SINCE&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">last_modified</span><span class="p">:</span>
-                    <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">not_modified</span>
-                    <span class="k">return</span></pre></div>
+      <div class="highlight"><pre>                <span class="n">response</span><span class="p">[</span><span class="s">&#39;Cache-Control&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;no-cache&#39;</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-46'>
@@ -703,11 +692,12 @@ entity tag (ETag) has changed, <code>If-None-Match</code>.</p>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-46'>#</a>
       </div>
-      <h3>Call Request Method Handler</h3>
+      <p>HTTP/1.0</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="n">handler_output</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">())(</span><span class="n">request</span><span class="p">,</span>
-            <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></pre></div>
+      <div class="highlight"><pre>                <span class="n">response</span><span class="p">[</span><span class="s">&#39;Pragma&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;no-cache&#39;</span>
+                <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">precondition_failed</span>
+                <span class="k">return</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-47'>
@@ -715,22 +705,42 @@ entity tag (ETag) has changed, <code>If-None-Match</code>.</p>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-47'>#</a>
       </div>
-      <p>TODO implement post request method handling header augmentation</p>
+      <p>Check for conditional GET or HEAD request</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_etags</span> <span class="ow">and</span> <span class="s">&#39;ETag&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">response</span><span class="p">:</span>
-            <span class="k">pass</span>
+      <div class="highlight"><pre>        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="n">methods</span><span class="o">.</span><span class="n">get</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="n">methods</span><span class="o">.</span><span class="n">head</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_etags</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_NONE_MATCH&#39;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
+                <span class="n">etag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_etag</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_NONE_MATCH&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s">&#39;&quot;&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">etag</span><span class="p">:</span>
+                    <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">not_modified</span>
+                    <span class="k">return</span>
 
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_last_modified</span> <span class="ow">and</span> <span class="s">&#39;Last-Modified&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
-            <span class="k">pass</span>
-
-        <span class="k">return</span> <span class="n">handler_output</span></pre></div>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_last_modified</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_MODIFIED_SINCE&#39;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
+                <span class="n">last_modified</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_modified</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="n">known_last_modified</span> <span class="o">=</span> <span class="n">EPOCH_DATE</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">parse_http_date</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_MODIFIED_SINCE&#39;</span><span class="p">]))</span>
+                <span class="k">if</span> <span class="n">known_last_modified</span> <span class="o">&gt;=</span> <span class="n">last_modified</span><span class="p">:</span>
+                    <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">codes</span><span class="o">.</span><span class="n">not_modified</span>
+                    <span class="k">return</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-48'>
     <div class='docs'>
       <div class='octowrap'>
         <a class='octothorpe' href='#section-48'>#</a>
+      </div>
+      <h3>Call Request Method Handler</h3>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre>        <span class="n">handler_output</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">())(</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">handler_output</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div><div class='section' id='section-49'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-49'>#</a>
       </div>
       <h2>Request Method Handlers</h2>
 <h3><em>HEAD</em> Request Handler</h3>
@@ -740,13 +750,14 @@ a <em>GET</em> handler must be defined.</p>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">def</span> <span class="nf">head</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="n">response</span><span class="o">.</span><span class="n">content</span> <span class="o">=</span> <span class="s">&#39;&#39;</span></pre></div>
+        <span class="n">response</span><span class="o">.</span><span class="n">content</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="n">response</span><span class="p">[</span><span class="s">&#39;Content-Length&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-49'>
+  <div class='clearall'></div><div class='section' id='section-50'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-49'>#</a>
+        <a class='octothorpe' href='#section-50'>#</a>
       </div>
       <h3><em>OPTIONS</em> Request Handler</h3>
 <p>Default handler <em>OPTIONS</em> requests.</p>
@@ -755,10 +766,10 @@ a <em>GET</em> handler must be defined.</p>
       <div class="highlight"><pre>    <span class="k">def</span> <span class="nf">options</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-50'>
+  <div class='clearall'></div><div class='section' id='section-51'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-50'>#</a>
+        <a class='octothorpe' href='#section-51'>#</a>
       </div>
       <p>See <a href="http://tools.ietf.org/html/rfc5789#section-3.1">RFC 5789</a></p>
     </div>
@@ -770,10 +781,10 @@ a <em>GET</em> handler must be defined.</p>
         <span class="n">response</span><span class="p">[</span><span class="s">&#39;Content-Length&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-51'>
+  <div class='clearall'></div><div class='section' id='section-52'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-51'>#</a>
+        <a class='octothorpe' href='#section-52'>#</a>
       </div>
       <p>HTTP/1.1</p>
     </div>
@@ -781,10 +792,10 @@ a <em>GET</em> handler must be defined.</p>
       <div class="highlight"><pre>        <span class="n">response</span><span class="p">[</span><span class="s">&#39;Cache-Control&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;no-cache&#39;</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-52'>
+  <div class='clearall'></div><div class='section' id='section-53'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-52'>#</a>
+        <a class='octothorpe' href='#section-53'>#</a>
       </div>
       <p>HTTP/1.0</p>
     </div>
@@ -792,10 +803,10 @@ a <em>GET</em> handler must be defined.</p>
       <div class="highlight"><pre>        <span class="n">response</span><span class="p">[</span><span class="s">&#39;Pragma&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;no-cache&#39;</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-53'>
+  <div class='clearall'></div><div class='section' id='section-54'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-53'>#</a>
+        <a class='octothorpe' href='#section-54'>#</a>
       </div>
       <h2>Response Status Code Handlers</h2>
 <p>Each handler prefixed with <code>check_</code> corresponds to various client (4xx)
@@ -807,10 +818,10 @@ must return <code>True</code> to fail the check.</em></p>
       <div class="highlight"><pre></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-54'>
+  <div class='clearall'></div><div class='section' id='section-55'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-54'>#</a>
+        <a class='octothorpe' href='#section-55'>#</a>
       </div>
       <h3>Service Unavailable</h3>
 <p>Checks if the service is unavailable based on the <code>unavailable</code> flag.
@@ -834,10 +845,10 @@ See also: <code>unavailable</code></p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-55'>
+  <div class='clearall'></div><div class='section' id='section-56'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-55'>#</a>
+        <a class='octothorpe' href='#section-56'>#</a>
       </div>
       <h3>Unauthorized</h3>
 <p>Checks if the request is authorized to access this resource.
@@ -848,10 +859,10 @@ Default is a no-op.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-56'>
+  <div class='clearall'></div><div class='section' id='section-57'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-56'>#</a>
+        <a class='octothorpe' href='#section-57'>#</a>
       </div>
       <h3>Forbidden</h3>
 <p>Checks if the request is forbidden. Default is a no-op.</p>
@@ -861,10 +872,10 @@ Default is a no-op.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-57'>
+  <div class='clearall'></div><div class='section' id='section-58'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-57'>#</a>
+        <a class='octothorpe' href='#section-58'>#</a>
       </div>
       <h3>Too Many Requests</h3>
 <p>Checks if this request is rate limited. Default is a no-op.</p>
@@ -874,24 +885,24 @@ Default is a no-op.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-58'>
+  <div class='clearall'></div><div class='section' id='section-59'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-58'>#</a>
+        <a class='octothorpe' href='#section-59'>#</a>
       </div>
       <h3>Request Entity Too Large</h3>
 <p>Check if the request entity is too large to process.</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">def</span> <span class="nf">check_request_entity_too_large</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;CONTENT_LENGTH&#39;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_request_entity_length</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;CONTENT_LENGTH&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_request_entity_length</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-59'>
+  <div class='clearall'></div><div class='section' id='section-60'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-59'>#</a>
+        <a class='octothorpe' href='#section-60'>#</a>
       </div>
       <h3>Method Not Allowed</h3>
 <p>Check if the request method is not allowed.</p>
@@ -904,10 +915,10 @@ Default is a no-op.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-60'>
+  <div class='clearall'></div><div class='section' id='section-61'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-60'>#</a>
+        <a class='octothorpe' href='#section-61'>#</a>
       </div>
       <h3>Unsupported Media Type</h3>
 <p>Check if this resource can process the request entity body. Note
@@ -929,10 +940,10 @@ when processing it.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-61'>
+  <div class='clearall'></div><div class='section' id='section-62'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-61'>#</a>
+        <a class='octothorpe' href='#section-62'>#</a>
       </div>
       <h3>Not Acceptable</h3>
 <p>Check if this resource can return an acceptable response.</p>
@@ -957,10 +968,10 @@ when processing it.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-62'>
+  <div class='clearall'></div><div class='section' id='section-63'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-62'>#</a>
+        <a class='octothorpe' href='#section-63'>#</a>
       </div>
       <h3>Precondition Required</h3>
 <p>Check if a conditional request is </p>
@@ -968,20 +979,16 @@ when processing it.</p>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">def</span> <span class="nf">check_precondition_required</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_etags</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_MATCH&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
-            <span class="n">response</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">&#39;This request is required to be conditional; &#39;</span>\
-                <span class="s">&#39;try using &quot;If-Match&quot;&#39;</span>
             <span class="k">return</span> <span class="bp">True</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_last_modified</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_UNMODIFIED_SINCE&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
-            <span class="n">response</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">&#39;This request is required to be conditional; &#39;</span>\
-                <span class="s">&#39;try using &quot;If-Unmodified-Since&quot;&#39;</span>
             <span class="k">return</span> <span class="bp">True</span>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-63'>
+  <div class='clearall'></div><div class='section' id='section-64'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-63'>#</a>
+        <a class='octothorpe' href='#section-64'>#</a>
       </div>
       
     </div>
@@ -989,10 +996,10 @@ when processing it.</p>
       <div class="highlight"><pre>    <span class="k">def</span> <span class="nf">check_precondition_failed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-64'>
+  <div class='clearall'></div><div class='section' id='section-65'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-64'>#</a>
+        <a class='octothorpe' href='#section-65'>#</a>
       </div>
       <p>ETags are enabled. Check for conditional request headers. The current
 ETag value is used for the conditional requests. After the request
@@ -1001,14 +1008,14 @@ method handler has been processed, the new ETag will be calculated.</p>
     <div class='code'>
       <div class="highlight"><pre>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_etags</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_MATCH&#39;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
             <span class="n">etag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_etag</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_MATCH&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">etag</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_MATCH&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s">&#39;&quot;&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="n">etag</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-65'>
+  <div class='clearall'></div><div class='section' id='section-66'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-65'>#</a>
+        <a class='octothorpe' href='#section-66'>#</a>
       </div>
       <p>Last-Modified date enabled. check for conditional request headers. The
 current modification datetime value is used for the conditional
@@ -1018,16 +1025,17 @@ Last-Modified datetime will be returned.</p>
     <div class='code'>
       <div class="highlight"><pre>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_last_modified</span> <span class="ow">and</span> <span class="s">&#39;HTTP_IF_UNMODIFIED_SINCE&#39;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">:</span>
             <span class="n">last_modified</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_modified</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_UNMODIFIED_SINCE&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">http_date</span><span class="p">(</span><span class="n">last_modified</span><span class="p">):</span>
+            <span class="n">known_last_modified</span> <span class="o">=</span> <span class="n">EPOCH_DATE</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">parse_http_date</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="p">[</span><span class="s">&#39;HTTP_IF_UNMODIFIED_SINCE&#39;</span><span class="p">]))</span>
+            <span class="k">if</span>  <span class="n">known_last_modified</span> <span class="o">!=</span> <span class="n">last_modified</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">True</span>
 
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-66'>
+  <div class='clearall'></div><div class='section' id='section-67'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-66'>#</a>
+        <a class='octothorpe' href='#section-67'>#</a>
       </div>
       <h3>Not Found</h3>
 <p>Checks if the requested resource exists.</p>
@@ -1037,10 +1045,10 @@ Last-Modified datetime will be returned.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-67'>
+  <div class='clearall'></div><div class='section' id='section-68'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-67'>#</a>
+        <a class='octothorpe' href='#section-68'>#</a>
       </div>
       <h3>Gone</h3>
 <p>Checks if the resource <em>no longer</em> exists.</p>
@@ -1050,10 +1058,10 @@ Last-Modified datetime will be returned.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-68'>
+  <div class='clearall'></div><div class='section' id='section-69'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-68'>#</a>
+        <a class='octothorpe' href='#section-69'>#</a>
       </div>
       <h2>Request Accept-* handlers</h2>
     </div>
@@ -1061,10 +1069,10 @@ Last-Modified datetime will be returned.</p>
       <div class="highlight"><pre></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-69'>
+  <div class='clearall'></div><div class='section' id='section-70'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-69'>#</a>
+        <a class='octothorpe' href='#section-70'>#</a>
       </div>
       <p>Checks if the requested <code>Accept</code> mimetype is supported. Defaults
 to using the first specified mimetype in <code>supported_accept_types</code>.</p>
@@ -1082,10 +1090,10 @@ to using the first specified mimetype in <code>supported_accept_types</code>.</p
                 <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-70'>
+  <div class='clearall'></div><div class='section' id='section-71'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-70'>#</a>
+        <a class='octothorpe' href='#section-71'>#</a>
       </div>
       <p>Only if <code>Accept</code> explicitly contains a <code>*/*;q=0.0</code>
 does it preclude from returning a non-matching mimetype.
@@ -1097,10 +1105,10 @@ option, e.g. <code>force_accept_type</code></p>
                 <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-71'>
+  <div class='clearall'></div><div class='section' id='section-72'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-71'>#</a>
+        <a class='octothorpe' href='#section-72'>#</a>
       </div>
       <p>If <code>supported_accept_types</code> is empty, it is assumed that the resource
 will return whatever it wants.</p>
@@ -1111,10 +1119,10 @@ will return whatever it wants.</p>
         <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-72'>
+  <div class='clearall'></div><div class='section' id='section-73'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-72'>#</a>
+        <a class='octothorpe' href='#section-73'>#</a>
       </div>
       <p>Checks if the requested <code>Accept-Charset</code> is supported.</p>
     </div>
@@ -1123,10 +1131,10 @@ will return whatever it wants.</p>
         <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-73'>
+  <div class='clearall'></div><div class='section' id='section-74'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-73'>#</a>
+        <a class='octothorpe' href='#section-74'>#</a>
       </div>
       <p>Checks if the requested <code>Accept-Encoding</code> is supported.</p>
     </div>
@@ -1135,10 +1143,10 @@ will return whatever it wants.</p>
         <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-74'>
+  <div class='clearall'></div><div class='section' id='section-75'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-74'>#</a>
+        <a class='octothorpe' href='#section-75'>#</a>
       </div>
       <p>Checks if the requested <code>Accept-Language</code> is supported.</p>
     </div>
@@ -1147,10 +1155,10 @@ will return whatever it wants.</p>
         <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-75'>
+  <div class='clearall'></div><div class='section' id='section-76'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-75'>#</a>
+        <a class='octothorpe' href='#section-76'>#</a>
       </div>
       <h2>Conditionl Request Handlers</h2>
     </div>
@@ -1158,10 +1166,10 @@ will return whatever it wants.</p>
       <div class="highlight"><pre></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-76'>
+  <div class='clearall'></div><div class='section' id='section-77'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-76'>#</a>
+        <a class='octothorpe' href='#section-77'>#</a>
       </div>
       <h3>Calculate ETag</h3>
 <p>Calculates an etag for the requested entity.
@@ -1178,10 +1186,10 @@ operation is valid (optimistic concurrency).</p>
         <span class="k">pass</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-77'>
+  <div class='clearall'></div><div class='section' id='section-78'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-77'>#</a>
+        <a class='octothorpe' href='#section-78'>#</a>
       </div>
       <h3>Calculate Last Modified Datetime</h3>
 <p>Calculates the last modified time for the requested entity.
@@ -1193,10 +1201,10 @@ conditional requests.</p>
         <span class="k">pass</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-78'>
+  <div class='clearall'></div><div class='section' id='section-79'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-78'>#</a>
+        <a class='octothorpe' href='#section-79'>#</a>
       </div>
       <h3>Calculate Expiry Datetime</h3>
 <p>Gets the expiry date and time for the requested entity.
@@ -1209,10 +1217,10 @@ client's local cache is used.</p>
         <span class="k">pass</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-79'>
+  <div class='clearall'></div><div class='section' id='section-80'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-79'>#</a>
+        <a class='octothorpe' href='#section-80'>#</a>
       </div>
       <h2>Entity Content-* handlers</h2>
     </div>
@@ -1220,10 +1228,10 @@ client's local cache is used.</p>
       <div class="highlight"><pre></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-80'>
+  <div class='clearall'></div><div class='section' id='section-81'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-80'>#</a>
+        <a class='octothorpe' href='#section-81'>#</a>
       </div>
       <p>Check if the request Content-Type is supported by this resource
 for decoding.</p>
@@ -1240,10 +1248,10 @@ for decoding.</p>
         <span class="k">return</span> <span class="bp">False</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-81'>
+  <div class='clearall'></div><div class='section' id='section-82'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-81'>#</a>
+        <a class='octothorpe' href='#section-82'>#</a>
       </div>
       
     </div>
@@ -1252,10 +1260,10 @@ for decoding.</p>
         <span class="k">return</span> <span class="bp">True</span></pre></div>
     </div>
   </div>
-  <div class='clearall'></div><div class='section' id='section-82'>
+  <div class='clearall'></div><div class='section' id='section-83'>
     <div class='docs'>
       <div class='octowrap'>
-        <a class='octothorpe' href='#section-82'>#</a>
+        <a class='octothorpe' href='#section-83'>#</a>
       </div>
       
     </div>
