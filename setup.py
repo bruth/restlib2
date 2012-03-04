@@ -5,7 +5,7 @@ from distutils.command.install import INSTALL_SCHEMES
 import os
 import sys
 
-main_package = 'resources'
+main_package = 'restlib2'
 
 class osx_install_data(install_data):
     # On MacOS, the platform-specific lib dir is /System/Library/Framework/Python/.../
@@ -71,13 +71,13 @@ version = __import__(main_package).get_version()
 
 setup(
     version = version,
-    name = 'django-resources',
+    name = 'django-restlib2',
     author = 'Byron Ruth',
     author_email = 'b@devel.io',
     description = 'Django REST API',
     license = 'BSD',
     keywords = 'REST Django HTTP HATEOAS',
-    url = 'https://github.com/bruth/django-resources',
+    url = 'https://github.com/bruth/django-restlib2',
 
     packages = packages,
     cmdclass = cmdclasses,

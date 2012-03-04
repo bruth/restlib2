@@ -1,10 +1,10 @@
 [run]
 include =
-    resources/models.py
-    resources/http.py
-    resources/tests/cases.py
+    restlib2/resources.py
+    restlib2/http.py
+    restlib2/tests/cases.py
 
-source = resources
+source = restlib2
 
 [html]
 directory = docs/coverage

@@ -1,8 +1,8 @@
 import unittest
 from calendar import timegm
 from django.test.client import RequestFactory
-from resources.models import Resource
-from resources.http import codes
+from restlib2 import Resource
+from restlib2.http import codes
 
 class ResourceTestCase(unittest.TestCase):
     def setUp(self):

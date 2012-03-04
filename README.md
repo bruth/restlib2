@@ -1,7 +1,7 @@
-Resources: HTTP for Programmers
-===============================
-Inspired by [Requests][1], Resources is an HTTP library which simplifies
-creating dynamic Web resources in Python. Resources focuses on embracing
+Django RESTlib: HTTP for Programmers
+====================================
+Inspired by [Requests][1], RESTlib2 is an HTTP library which simplifies
+creating dynamic Web resources in Python. RESTlib2 focuses on embracing
 HTTP and enables clean transparent implementations of your resources.
 
 Why?
@@ -30,7 +30,7 @@ how it works. The developer must work within the confines of this intricate
 and arbitrary API, rather than embracing and confidently working with
 the inferred _API_ HTTP provides.
 
-Resources intends to provide a more simple, natural and familiar API for
+RESTlib2 intends to provide a more simple, natural and familiar API for
 creating dynamic Web resources in Python.
 
 [1]: http://python-requests.org
@@ -138,7 +138,7 @@ For a large collection of objects, choosing to not embed related resources
 results in the client needing to potentially make hundreds or thousands
 additional requests.
 
-Resources provides an API for reusing resources by either referencing them
+RESTlib2 provides an API for reusing resources by either referencing them
 (first example) or embedding them directly (second example).
 
 ```python
