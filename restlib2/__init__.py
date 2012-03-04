@@ -1,5 +1,3 @@
-from resources import Resource
-
 __version_info__ = {
     'major': 0,
     'minor': 1,
