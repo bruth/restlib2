@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html;charset=utf-8">
+  <title>http.py</title>
+  <link rel="stylesheet" href="pycco.css">
+</head>
+<body>
+<div id="background"></div>
+<div id='container'>
+  
+  <div class='section'>
+    <div class='docs'><h1>http.py</h1></div>
+  </div>
+  <div class='clearall'>
+  <div class='section' id='section-0'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-0'>#</a>
+      </div>
+      
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre><span class="kn">from</span> <span class="nn">django.core.handlers.wsgi</span> <span class="kn">import</span> <span class="n">STATUS_CODE_TEXT</span>
+<span class="kn">from</span> <span class="nn">.structures</span> <span class="kn">import</span> <span class="n">AttrDict</span>
+
+<span class="n">methods</span> <span class="o">=</span> <span class="n">AttrDict</span><span class="p">(</span>
+    <span class="s">&#39;HTTP Methods&#39;</span><span class="p">,</span>
+
+    <span class="n">GET</span> <span class="o">=</span> <span class="s">&#39;GET&#39;</span><span class="p">,</span>
+    <span class="n">HEAD</span> <span class="o">=</span> <span class="s">&#39;HEAD&#39;</span><span class="p">,</span>
+    <span class="n">OPTIONS</span> <span class="o">=</span> <span class="s">&#39;OPTIONS&#39;</span><span class="p">,</span>
+    <span class="n">POST</span> <span class="o">=</span> <span class="s">&#39;POST&#39;</span><span class="p">,</span>
+    <span class="n">PUT</span> <span class="o">=</span> <span class="s">&#39;PUT&#39;</span><span class="p">,</span>
+    <span class="n">DELETE</span> <span class="o">=</span> <span class="s">&#39;DELETE&#39;</span><span class="p">,</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div><div class='section' id='section-1'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-1'>#</a>
+      </div>
+      <p>PATCH Method introduced; ref: http://tools.ietf.org/html/rfc5789</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre>    <span class="n">PATCH</span> <span class="o">=</span> <span class="s">&#39;PATCH&#39;</span><span class="p">,</span>
+<span class="p">)</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div><div class='section' id='section-2'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-2'>#</a>
+      </div>
+      <p>New codes http://tools.ietf.org/html/draft-nottingham-http-new-status-02</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre><span class="n">STATUS_CODE_TEXT</span><span class="p">[</span><span class="mi">422</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;UNPROCESSABLE ENTITY&#39;</span>
+<span class="n">STATUS_CODE_TEXT</span><span class="p">[</span><span class="mi">428</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;PRECONDITION REQUIRED&#39;</span>
+<span class="n">STATUS_CODE_TEXT</span><span class="p">[</span><span class="mi">429</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;TOO MANY REQUESTS&#39;</span>
+<span class="n">STATUS_CODE_TEXT</span><span class="p">[</span><span class="mi">431</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;REQUEST HEADER FIELDS TOO LARGE&#39;</span>
+<span class="n">STATUS_CODE_TEXT</span><span class="p">[</span><span class="mi">511</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;NETWORK AUTHENTICATION REQUIRED&#39;</span></pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div><div class='section' id='section-3'>
+    <div class='docs'>
+      <div class='octowrap'>
+        <a class='octothorpe' href='#section-3'>#</a>
+      </div>
+      <p>Invert dict for reference by name</p>
+    </div>
+    <div class='code'>
+      <div class="highlight"><pre><span class="n">codes</span> <span class="o">=</span> <span class="n">AttrDict</span><span class="p">(</span>
+    <span class="s">&#39;HTTP Status Codes&#39;</span><span class="p">,</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="s">&#39;_&#39;</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">STATUS_CODE_TEXT</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+</pre></div>
+    </div>
+  </div>
+  <div class='clearall'></div>
+</div>
+</body>
