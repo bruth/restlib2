@@ -203,7 +203,7 @@ specified that will be called when being serialized. Default is all fields
 and local related fields.
 * `exclude` - A list of fields names to exclude (this takes precedence
 over fields). Default is `None`.
-* `relations` - A dict of related object accessor and configs (see below) for
+* `related` - A dict of related object accessor and configs (see below) for
 handling related object.
 * `values_list` - This option only applies to `QuerySet`s. Returns a list of
 lists which the field values (like Django's `ValuesListQuerySet`). Default is
