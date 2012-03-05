@@ -162,3 +162,107 @@ Philosophy
 * **Keep it visible.** Resources should be as _visible_ as possible. Do not
   obfuscate or overcomplicate how a request is handled, otherwise processing
   becomes non-deterministic.
+
+
+Utilities for Models and QuerySets
+----------------------------------
+
+``restlib2.utils.serialize`` is a one-stop shop for ensuring an object
+is free of `Model` and `QuerySet` instances. By default, all non-relational
+fields will be included as well as the primary keys of local related fields.
+Thus a serialized user object might look like this:
+
+```python
+>>> serialize(user)
+{
+    'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
+    'email': u'jon@doe.com',
+    'first_name': u'Jon',
+    'groups': [5],
+    'id': 1,
+    'is_active': True,
+    'is_staff': True,
+    'is_superuser': True,
+    'last_login': datetime.datetime(2012, 3, 3, 17, 40, 41, 927637),
+    'last_name': u'Doe',
+    'password': u'!',
+    'user_permissions': [1, 2, 3],
+    'username': u'jdoe'
+}
+```
+
+This can then be passed off to an encoder, e.g. JSON, to turn it into a string for
+the response body.
+
+Some of these fields may not be appropriate or relevent to include in the response.
+To customize which fields get included or excluded, the following arguments can be
+passed to ``serialize``:
+
+* `fields` - A list of fields names to include. Method names can also be
+specified that will be called when being serialized. Default is all fields
+and local related fields.
+* `exclude` - A list of fields names to exclude (this takes precedence
+over fields). Default is `None`.
+* `relations` - A dict of related object accessor and configs (see below) for
+handling related object.
+* `values_list` - This option only applies to `QuerySet`s. Returns a list of
+lists which the field values (like Django's `ValuesListQuerySet`). Default is
+`False`.
+* `flatten` - Applies only if `values_list` is `True` and one field is specified.
+If `True`, flattens out the list of lists into a single list of values. Default is
+`True`.
+* `key_prefix` - A string to be use to prefix the dictionary keys. To enable dynamic
+prefixes, the prefix may contain `'%(accessor)s' which will be the class name for
+top-level objects or the accessor name for related objects. Default is `None`.
+* `keymap` - A dict that maps field/method names to the keys of the
+output dictionary. Default is `None`.
+* `camelize` - Converts all keys (after `keymap` is applied) to a camel-case
+equivalent. This is merely a convenience for conforming to language convention
+for consumers of this content, e.g. JavaScript. Default is `False`
+
+```python
+>>> serialize(user, fields=['username', 'get_full_name'], keymap={'get_full_name': 'full_name'}, camelize=True)
+{
+    'fullName': u'Jon Doe',
+    'username': u'jdoe'
+}
+
+>>> serialize(user, exclude=['password', 'groups', 'permissions'])
+{
+    'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
+    'email': u'jon@doe.com',
+    'first_name': u'Jon',
+    'id': 1,
+    'is_active': True,
+    'is_staff': True,
+    'is_superuser': True,
+    'last_login': datetime.datetime(2012, 3, 3, 17, 40, 41, 927637),
+    'last_name': u'Doe',
+    'username': u'jdoe'
+}
+```
+
+Related Objects
+---------------
+Composite resources are common when dealing with data with tight relationships.
+The above `Author` and `Book` example is a good example of this. It is inefficient
+for a client to have to make two separate requests for data that is typically
+always consumed together.
+
+`serialize` supports the `related` keyword argument for defining options for
+relational fields. The following additional attributes (to the above) may be
+defined:
+
+* `merge` - This option only applies to local `ForeignKey` or `OneToOneField`. This
+allows for merge this object's fields into the parent object, e.g. a user and
+their profile.
+
+```python
+>>> serialize(user, related={'groups': {'fields': ['name']}})
+{
+    'username': u'jdoe',
+    'groups': [{
+        'name': u'Managers'
+    }]
+}
+```

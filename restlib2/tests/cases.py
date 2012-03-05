@@ -285,7 +285,3 @@ class ResourceTestCase(unittest.TestCase):
         response = resource(request)
         self.assertEqual(response.status_code, 304)
 
-
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(ResourceTestCase)
-    unittest.TextTestRunner(verbosity=2).run(suite)

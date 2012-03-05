@@ -182,7 +182,12 @@ class Resource(object):
         # Process the request, this should modify the `response`
         content = self.process(request, response, *args, **kwargs)
 
-        if content is not None:
+        # For decorators and such that return a fixed response, e.g. `permission_required`
+        # allow for overriding the response object.
+        # TODO should the response still be augmented with the response constraints
+        if isinstance(response, HttpResponse):
+            response = content
+        elif content is not None:
             response.content = content
 
         return response
