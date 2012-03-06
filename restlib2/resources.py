@@ -248,7 +248,7 @@ class Resource(object):
 
         # ## Request Entity Checks
         # Only perform these checks if the request has supplied a body.
-        if 'CONTENT_LENGTH' in request.META:
+        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
 
             # ### 415 Unsupported Media Type
             # Check if the entity `Content-Type` supported for decoding.
