@@ -3,7 +3,7 @@ import mimeparse
 from calendar import timegm
 from datetime import datetime, timedelta
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpRequest
 from django.utils.http import http_date, parse_http_date
 from http import codes, methods
 
@@ -58,6 +58,15 @@ class ResourceMetaclass(type):
             new_cls.supported_patch_types = new_cls.supported_content_types
 
         return new_cls
+
+    def __call__(cls, *args, **kwargs):
+        """Tests to see if the first argument is an HttpRequest object, creates
+        an instance, and calls it with the arguments.
+        """
+        if args and isinstance(args[0], HttpRequest):
+            instance = super(ResourceMetaclass, cls).__call__()
+            return instance.__call__(*args, **kwargs)
+        return super(ResourceMetaclass, cls).__call__(*args, **kwargs)
 
 
 # ## Resource
