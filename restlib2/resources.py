@@ -141,8 +141,11 @@ class Resource(object):
 
     # ### Use ETags
     # If `True`, the `ETag` header will be set on responses and conditional
-    # requests are supported. This applies to _GET_, _HEAD_, _PUT_, _PATCH_
-    # and _DELETE_ requests. Defaults to Django's `USE_ETAGS` setting.
+    # requests are supported. This applies to _GET_, _HEAD_, _PUT_, and _PATCH_
+    # requests. Defaults to Django's `USE_ETAGS` setting. Note, it is safe to
+    # use along side Django's [common middleware][1] since it checks for an `ETag`
+    # prior to generating one from the response content.
+    # [1]: https://github.com/django/django/blob/master/django/middleware/common.py#L113
     use_etags = settings.USE_ETAGS
 
     # ### Use Last Modified
