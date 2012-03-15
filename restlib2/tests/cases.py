@@ -1,6 +1,7 @@
 import unittest
 from calendar import timegm
 from django.test.client import RequestFactory
+from django.http import HttpResponse
 from restlib2.resources import Resource
 from restlib2.http import codes
 
@@ -16,7 +17,7 @@ class ResourceTestCase(unittest.TestCase):
 
         request = self.factory.request(REQUEST_METHOD='OPTIONS')
         response = resource(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
         # Try another non-default method
         request = self.factory.request()
@@ -27,14 +28,14 @@ class ResourceTestCase(unittest.TestCase):
         class PatchResource(Resource):
             allowed_methods = ('PATCH', 'OPTIONS')
 
-            def patch(self, request, response):
-                response.status_code = codes.no_content
+            def patch(self, request):
+                pass
 
         resource = PatchResource()
 
         request = self.factory.request(REQUEST_METHOD='OPTIONS')
         response = resource(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(response['Accept-Patch'], 'application/json')
 
     def test_service_unavailable(self):
@@ -77,8 +78,8 @@ class ResourceTestCase(unittest.TestCase):
     def test_unsupported_media_type(self):
         "Test various Content-* combinations."
         class ReadOnlyResource(Resource):
-            def post(self, request, response, *args, **kwargs):
-                response.status_code = codes.no_content
+            def post(self, request, *args, **kwargs):
+                pass
 
         resource = ReadOnlyResource()
 
@@ -95,7 +96,7 @@ class ResourceTestCase(unittest.TestCase):
     def test_not_acceptable(self):
         "Test various Accept-* combinations."
         class ReadOnlyResource(Resource):
-            def get(self, request, response, *args, **kwargs):
+            def get(self, request, *args, **kwargs):
                 return '{}'
 
         resource = ReadOnlyResource()
@@ -122,8 +123,8 @@ class ResourceTestCase(unittest.TestCase):
         class TinyResource(Resource):
             max_request_entity_length = 20
 
-            def post(self, request, response, *args, **kwargs):
-                response.status_code = codes.no_content
+            def post(self, request, *args, **kwargs):
+                pass
 
         resource = TinyResource()
 
@@ -153,7 +154,7 @@ class ResourceTestCase(unittest.TestCase):
             request_frame_start = datetime.now()
             request_count = 0
 
-            def check_too_many_requests(self, request, response, *args, **kwargs):
+            def is_too_many_requests(self, request, *args, **kwargs):
                 interval = (datetime.now() - self.request_frame_start).seconds
                 self.request_count += 1
 
@@ -175,7 +176,7 @@ class ResourceTestCase(unittest.TestCase):
 
         for _ in xrange(0, 10):
             response = resource(request)
-            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.status_code, 204)
 
         time.sleep(1)
 
@@ -187,7 +188,7 @@ class ResourceTestCase(unittest.TestCase):
 
         for _ in xrange(0, 10):
             response = resource(request)
-            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.status_code, 204)
 
 
     def test_precondition_required(self):
@@ -195,11 +196,11 @@ class ResourceTestCase(unittest.TestCase):
             require_conditional_request = True
             use_etags = True
 
-            def put(self, request, response):
-                return codes.no_content
+            def put(self, request):
+                pass
 
-            def delete(self, request, response):
-                return codes.no_content
+            def delete(self, request):
+                pass
 
             def get_etag(self, request, *args, **kwargs):
                 return 'abc123'
@@ -216,17 +217,17 @@ class ResourceTestCase(unittest.TestCase):
         request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json',
                 HTTP_IF_MATCH='abc123')
         response = resource(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
     def test_precondition_failed(self):
         class PreconditionResource(Resource):
             use_etags = True
 
-            def put(self, request, response):
-                return codes.no_content
+            def put(self, request):
+                pass
 
-            def get(self, request, response):
-                return codes.ok
+            def get(self, request):
+                pass
 
             def get_etag(self, request, *args, **kwargs):
                 return 'abc123'
@@ -242,7 +243,7 @@ class ResourceTestCase(unittest.TestCase):
 
         request = self.factory.get('/', HTTP_IF_NONE_MATCH='"def456"')
         response = resource(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
         request = self.factory.get('/', HTTP_IF_NONE_MATCH='"abc123"')
         response = resource(request)
@@ -257,11 +258,11 @@ class ResourceTestCase(unittest.TestCase):
             use_etags = False
             use_last_modified = True
 
-            def put(self, request, response):
-                return codes.no_content
+            def put(self, request):
+                pass
 
-            def get(self, request, response):
-                return codes.ok
+            def get(self, request):
+                pass
 
             def get_last_modified(self, request, *args, **kwargs):
                 return last_modified_date
@@ -279,7 +280,7 @@ class ResourceTestCase(unittest.TestCase):
 
         request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=http_date(timegm(datetime.now().utctimetuple())))
         response = resource(request)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
         request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=http_date(timegm((last_modified_date-timedelta(seconds=-20)).utctimetuple())))
         response = resource(request)
