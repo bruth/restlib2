@@ -175,6 +175,9 @@ def model_to_dict(obj, fields=None, exclude=None, related=None, **options):
 
 
 def queryset_to_list(queryset, fields=None, exclude=None, **options):
+    if 'select_related' in options:
+        queryset = queryset.select_related(*options['select_related'])
+
     if options.get('values_list', False):
         fields = parse_selectors(queryset.model, fields, exclude)
 
