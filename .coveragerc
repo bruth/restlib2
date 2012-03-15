@@ -3,6 +3,7 @@ include =
     restlib2/resources.py
     restlib2/http.py
     restlib2/utils.py
+    restlib2/serializers/*.py
 
 source = restlib2
 
