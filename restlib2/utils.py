@@ -159,9 +159,9 @@ def model_to_dict(obj, fields=None, exclude=None, related=None, **options):
             # Check if this object should be merged into the parent object
             if rel_options.get('merge', False):
                 for k, v in rel_obj_dict.iteritems():
-                    obj_dict[k] = v
+                    obj_dict[camelize(keymap.get(k, k))] = v
             else:
-                obj_dict[key] = rel_obj_dict
+                obj_dict[camelize(keymap.get(key, key))] = rel_obj_dict
 
         elif isinstance(value, QuerySet):
             rel_options = related.get(name, {})
