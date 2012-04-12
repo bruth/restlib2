@@ -3,6 +3,7 @@ import datetime
 from restlib2 import utils
 from restlib2.tests.models import Hacker, Tag
 
+
 class ModelSerializer(unittest.TestCase):
     def setUp(self):
         self.hackers = Hacker.objects.all()
@@ -26,7 +27,9 @@ class ModelSerializer(unittest.TestCase):
                 'last_login': datetime.datetime(2010, 3, 3, 17, 40, 41),
                 'password': u'!',
                 'id': 1,
-                'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40)
+                'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
+                'user_permissions': [],
+                'groups': [],
             },
             'libraries': [{
                 'url': u'https://github.com/jquery/jquery',
@@ -55,6 +58,8 @@ class ModelSerializer(unittest.TestCase):
                 'password': u'!',
                 'id': 2,
                 'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
+                'user_permissions': [],
+                'groups': [],
             },
             'libraries': [{
                 'url': u'https://github.com/documentcloud/backbone',
@@ -88,7 +93,9 @@ class ModelSerializer(unittest.TestCase):
                 'last_login': datetime.datetime(2010, 3, 3, 17, 40, 41),
                 'password': u'!',
                 'id': 3,
-                'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40)
+                'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
+                'user_permissions': [],
+                'groups': [],
             },
             'libraries': [{
                 'url': u'https://github.com/django/django',
@@ -227,3 +234,8 @@ class ModelSerializer(unittest.TestCase):
             }],
             'id': 4
         }])
+
+    def test_mixed_obj(self):
+        obj = utils.serialize({'leet_hacker': self.hackers[0]}, camelcase=True,
+                related={'leet_hacker': {'fields': ['signature']}})
+        self.assertEqual(obj, {'leetHacker': {'signature': 'John Resig  <>  http://ejohn.org'}})

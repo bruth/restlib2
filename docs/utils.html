@@ -304,8 +304,8 @@ parsed later</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre>    <span class="n">obj_dict</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="n">keymap</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s">&#39;keymap&#39;</span><span class="p">]</span>
-    <span class="n">camelize</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s">&#39;camelize&#39;</span><span class="p">]</span>
+    <span class="n">key_map</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s">&#39;key_map&#39;</span><span class="p">]</span>
+    <span class="n">camelcase</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s">&#39;camelcase&#39;</span><span class="p">]</span>
     <span class="n">related</span> <span class="o">=</span> <span class="n">related</span> <span class="ow">or</span> <span class="p">{}</span></pre></div>
     </div>
   </div>
@@ -361,7 +361,7 @@ parsed later</p>
       <p>Recursve, get the dict representation</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>            <span class="n">rel_obj_dict</span> <span class="o">=</span> <span class="n">model_to_dict</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="n">keymap</span><span class="p">,</span> <span class="n">camelize</span><span class="o">=</span><span class="n">camelize</span><span class="p">,</span> <span class="o">**</span><span class="n">rel_options</span><span class="p">)</span></pre></div>
+      <div class="highlight"><pre>            <span class="n">rel_obj_dict</span> <span class="o">=</span> <span class="n">model_to_dict</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="n">key_map</span><span class="p">,</span> <span class="n">camelcase</span><span class="o">=</span><span class="n">camelcase</span><span class="p">,</span> <span class="o">**</span><span class="n">rel_options</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-23'>
@@ -374,17 +374,17 @@ parsed later</p>
     <div class='code'>
       <div class="highlight"><pre>            <span class="k">if</span> <span class="n">rel_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;merge&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
                 <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rel_obj_dict</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
-                    <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelize</span><span class="p">(</span><span class="n">keymap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">))]</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelcase</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">))]</span> <span class="o">=</span> <span class="n">v</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelize</span><span class="p">(</span><span class="n">keymap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))]</span> <span class="o">=</span> <span class="n">rel_obj_dict</span>
+                <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelcase</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))]</span> <span class="o">=</span> <span class="n">rel_obj_dict</span>
 
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">QuerySet</span><span class="p">):</span>
             <span class="n">rel_options</span> <span class="o">=</span> <span class="n">related</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">{})</span>
-            <span class="n">rel_list</span> <span class="o">=</span> <span class="n">queryset_to_list</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="n">keymap</span><span class="p">,</span> <span class="n">camelize</span><span class="o">=</span><span class="n">camelize</span><span class="p">,</span> <span class="o">**</span><span class="n">rel_options</span><span class="p">)</span>
+            <span class="n">rel_list</span> <span class="o">=</span> <span class="n">queryset_to_list</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="n">key_map</span><span class="p">,</span> <span class="n">camelcase</span><span class="o">=</span><span class="n">camelcase</span><span class="p">,</span> <span class="o">**</span><span class="n">rel_options</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">rel_list</span><span class="p">:</span>
-                <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelize</span><span class="p">(</span><span class="n">keymap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))]</span> <span class="o">=</span> <span class="n">rel_list</span>
+                <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelcase</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))]</span> <span class="o">=</span> <span class="n">rel_list</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelize</span><span class="p">(</span><span class="n">keymap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">obj_dict</span><span class="p">[</span><span class="n">camelcase</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))]</span> <span class="o">=</span> <span class="n">value</span>
 
     <span class="k">return</span> <span class="n">obj_dict</span></pre></div>
     </div>
@@ -428,7 +428,7 @@ parsed later</p>
       <p>Recursively attempts to find <code>Model</code> and <code>QuerySet</code> instances</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre><span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">camelize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span></pre></div>
+      <div class="highlight"><pre><span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">camelcase</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-27'>
@@ -440,7 +440,7 @@ parsed later</p>
 <code>Resource</code> (if one exists).</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>    <span class="n">keymap</span> <span class="o">=</span> <span class="n">keymap</span> <span class="ow">or</span> <span class="p">{}</span></pre></div>
+      <div class="highlight"><pre>    <span class="n">key_map</span> <span class="o">=</span> <span class="n">key_map</span> <span class="ow">or</span> <span class="p">{}</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-28'>
@@ -451,10 +451,10 @@ parsed later</p>
       <p>This will be handled at the iteration</p>
     </div>
     <div class='code'>
-      <div class="highlight"><pre>    <span class="k">if</span> <span class="n">camelize</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
-        <span class="n">camelize</span> <span class="o">=</span> <span class="n">convert_to_camel</span>
-    <span class="k">elif</span> <span class="n">camelize</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
-        <span class="n">camelize</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span></pre></div>
+      <div class="highlight"><pre>    <span class="k">if</span> <span class="n">camelcase</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">camelcase</span> <span class="o">=</span> <span class="n">convert_to_camel</span>
+    <span class="k">elif</span> <span class="n">camelcase</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
+        <span class="n">camelcase</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-29'>
@@ -466,7 +466,7 @@ parsed later</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">model_to_dict</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="n">keymap</span><span class="p">,</span> <span class="n">camelize</span><span class="o">=</span><span class="n">camelize</span><span class="p">,</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">model_to_dict</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="n">key_map</span><span class="p">,</span> <span class="n">camelcase</span><span class="o">=</span><span class="n">camelcase</span><span class="p">,</span>
             <span class="o">**</span><span class="n">options</span><span class="p">)</span></pre></div>
     </div>
   </div>
@@ -479,7 +479,7 @@ parsed later</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">QuerySet</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">queryset_to_list</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="n">keymap</span><span class="p">,</span> <span class="n">camelize</span><span class="o">=</span><span class="n">camelize</span><span class="p">,</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">queryset_to_list</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="n">key_map</span><span class="p">,</span> <span class="n">camelcase</span><span class="o">=</span><span class="n">camelcase</span><span class="p">,</span>
             <span class="o">**</span><span class="n">options</span><span class="p">)</span></pre></div>
     </div>
   </div>
@@ -493,8 +493,8 @@ parsed later</p>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
-            <span class="n">obj</span><span class="p">[</span><span class="n">camelize</span><span class="p">(</span><span class="n">keymap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">))]</span> <span class="o">=</span> <span class="n">serialize</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="n">keymap</span><span class="p">,</span>
-                <span class="n">camelize</span><span class="o">=</span><span class="n">camelize</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span></pre></div>
+            <span class="n">obj</span><span class="p">[</span><span class="n">camelcase</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">))]</span> <span class="o">=</span> <span class="n">serialize</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="n">key_map</span><span class="p">,</span>
+                <span class="n">camelcase</span><span class="o">=</span><span class="n">camelcase</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span></pre></div>
     </div>
   </div>
   <div class='clearall'></div><div class='section' id='section-32'>
@@ -506,7 +506,7 @@ parsed later</p>
     </div>
     <div class='code'>
       <div class="highlight"><pre>    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s">&#39;__iter__&#39;</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">serialize</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">keymap</span><span class="o">=</span><span class="n">keymap</span><span class="p">,</span> <span class="n">camelize</span><span class="o">=</span><span class="n">camelize</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">),</span> <span class="nb">iter</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">serialize</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">key_map</span><span class="o">=</span><span class="n">key_map</span><span class="p">,</span> <span class="n">camelcase</span><span class="o">=</span><span class="n">camelcase</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">),</span> <span class="nb">iter</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
 
     <span class="k">return</span> <span class="n">obj</span>
 

@@ -5,7 +5,7 @@
     
     
     <meta http-equiv='X-UA-Compatible' content='IE=emulateIE7' />
-    <title>Coverage for restlib2/serializers/__init__: 56%</title>
+    <title>Coverage for restlib2/serializers/__init__: 64%</title>
     <link rel='stylesheet' href='style.css' type='text/css'>
     <script type='text/javascript' src='jquery-1.4.3.min.js'></script>
     <script type='text/javascript' src='jquery.hotkeys.js'></script>
@@ -20,7 +20,7 @@
 <div id='header'>
     <div class='content'>
         <h1>Coverage for <b>restlib2/serializers/__init__</b> :
-            <span class='pc_cov'>56%</span>
+            <span class='pc_cov'>64%</span>
         </h1>
         <img id='keyboard_icon' src='keybd_closed.png'>
         <h2 class='stats'>
@@ -28,6 +28,8 @@
             <span class='run hide_run shortkey_r' onclick='coverage.toggle_lines(this, "run")'>19 run</span>
             <span class='mis shortkey_m' onclick='coverage.toggle_lines(this, "mis")'>15 missing</span>
             <span class='exc shortkey_x' onclick='coverage.toggle_lines(this, "exc")'>0 excluded</span>
+            
+                <span class='par run hide_run shortkey_p' onclick='coverage.toggle_lines(this, "par")'>1 partial</span>
             
         </h2>
     </div>
@@ -71,7 +73,7 @@
 <p id='n9' class='pln'><a href='#n9'>9</a></p>
 <p id='n10' class='stm run hide_run'><a href='#n10'>10</a></p>
 <p id='n11' class='pln'><a href='#n11'>11</a></p>
-<p id='n12' class='stm run hide_run'><a href='#n12'>12</a></p>
+<p id='n12' class='stm par run hide_run'><a href='#n12'>12</a></p>
 <p id='n13' class='stm mis'><a href='#n13'>13</a></p>
 <p id='n14' class='pln'><a href='#n14'>14</a></p>
 <p id='n15' class='stm run hide_run'><a href='#n15'>15</a></p>
@@ -122,7 +124,7 @@
 <p id='t9' class='pln'><span class='strut'>&nbsp;</span></p>
 <p id='t10' class='stm run hide_run'>&nbsp; &nbsp; <span class='op'>@</span><span class='nam'>classmethod</span><span class='strut'>&nbsp;</span></p>
 <p id='t11' class='pln'>&nbsp; &nbsp; <span class='key'>def</span> <span class='nam'>register</span><span class='op'>(</span><span class='nam'>cls</span><span class='op'>,</span> <span class='nam'>mimetype</span><span class='op'>,</span> <span class='nam'>klass</span><span class='op'>)</span><span class='op'>:</span><span class='strut'>&nbsp;</span></p>
-<p id='t12' class='stm run hide_run'>&nbsp; &nbsp; &nbsp; &nbsp; <span class='key'>if</span> <span class='nam'>mimetype</span> <span class='key'>in</span> <span class='nam'>cls</span><span class='op'>.</span><span class='nam'>library</span><span class='op'>:</span><span class='strut'>&nbsp;</span></p>
+<p id='t12' class='stm par run hide_run'><span class='annotate' title='no jump to this line number'>13</span>&nbsp; &nbsp; &nbsp; &nbsp; <span class='key'>if</span> <span class='nam'>mimetype</span> <span class='key'>in</span> <span class='nam'>cls</span><span class='op'>.</span><span class='nam'>library</span><span class='op'>:</span><span class='strut'>&nbsp;</span></p>
 <p id='t13' class='stm mis'>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class='nam'>warnings</span><span class='op'>.</span><span class='nam'>warn</span><span class='op'>(</span><span class='str'>&#39;Re-registering for %s&#39;</span> <span class='op'>%</span> <span class='nam'>mimetype</span><span class='op'>)</span><span class='strut'>&nbsp;</span></p>
 <p id='t14' class='pln'><span class='strut'>&nbsp;</span></p>
 <p id='t15' class='stm run hide_run'>&nbsp; &nbsp; &nbsp; &nbsp; <span class='nam'>cls</span><span class='op'>.</span><span class='nam'>library</span><span class='op'>[</span><span class='nam'>mimetype</span><span class='op'>]</span> <span class='op'>=</span> <span class='nam'>klass</span><span class='op'>(</span><span class='op'>)</span><span class='strut'>&nbsp;</span></p>

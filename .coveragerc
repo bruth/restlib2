@@ -1,11 +1,25 @@
 [run]
-include =
-    restlib2/resources.py
-    restlib2/http.py
-    restlib2/utils.py
-    restlib2/serializers/*.py
-
+branch = True
 source = restlib2
+
+[report]
+omit =
+    restlib2/__init__.py
+    restlib2/models.py
+    restlib2/structures.py
+    restlib2/tests/*
+
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    def __unicode__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplemented(Error)?
+    if 0:
+    if __name__ == .__main__.:
 
 [html]
 directory = docs/coverage

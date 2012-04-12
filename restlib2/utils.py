@@ -82,105 +82,114 @@ class ModelFieldResolver(object):
 
 resolver = ModelFieldResolver()
 
-def parse_selectors(model, fields=None, exclude=None):
-    """Recursively verifies all of ``attrs`` for the given model (and related
-    models) exist. It also substitutes any pseduo-selectors present with the
-    attribute names.
+def parse_selectors(model, fields=None, exclude=None, key_map=None, **options):
+    """Validates fields are valid and maps pseudo-fields to actual fields
+    for a given model class.
     """
     fields = fields or DEFAULT_SELECTORS
     exclude = exclude or ()
-    level = []
+    key_map = key_map or {}
+    validated = []
 
-    for name in fields:
-        # This implies traversing through a related object, this will be
-        # parsed later
-        if isinstance(name, dict):
-            level.append(name)
-            continue
+    for alias in fields:
+        # Map the output key name to the actual field/accessor name for
+        # the model
+        actual = key_map.get(alias, alias)
 
-        attr = resolver.get_field(model, name)
+        # Validate the field exists
+        cleaned = resolver.get_field(model, actual)
 
-        if attr is None:
-            raise AttributeError('The "%s" attribute could not be found '
-                'on the model "%s"' % (name, model))
+        if cleaned is None:
+            raise AttributeError('The "{0}" attribute could not be found '
+                'on the model "{1}"'.format(name, model))
 
-        if type(attr) is list:
-            level.extend(attr)
+        # Mapped value, so use the original name listed in `fields`
+        if type(cleaned) is list:
+            validated.extend(cleaned)
+        elif alias != actual:
+            validated.append(alias)
         else:
-            level.append(attr)
+            validated.append(cleaned)
 
-    return tuple([x for x in level if x not in exclude])
+    return tuple([x for x in validated if x not in exclude])
 
 
-def get_field_value(obj, name): 
-    value = getattr(obj, name)
+def get_field_value(obj, name):
+    if hasattr(obj, name):
+        value = getattr(obj, name)
+    elif hasattr(obj, '__getitem__'):
+        value = obj[name]
+    else:
+        raise ValueError
 
     # Check for callable
     if callable(value):
         value = value()
 
     # Handle a local many-to-many or a reverse foreign key
-    elif value.__class__.__name__ in ('RelatedManager', 'ManyRelatedManager', 'GenericRelatedObjectManager'):
+    elif value.__class__.__name__ in ('RelatedManager', 'ManyRelatedManager',
+            'GenericRelatedObjectManager'):
         value = value.all()
 
     return value
 
-def model_to_dict(obj, fields=None, exclude=None, related=None, **options):
+def obj_to_dict(obj, fields, **options):
     """Takes a model object or queryset and converts it into a native object
     given the list of attributes either local or related to the object.
     """
     obj_dict = {}
-    keymap = options['keymap']
-    camelize = options['camelize']
-    related = related or {}
-
-    # Define prefix
+    related = options.get('related', {})
+    key_map = options.get('key_map', {})
+    camelcase = options['camelcase']
     prefix = options.get('key_prefix', '')
 
-    fields = parse_selectors(obj.__class__, fields, exclude)
+    for alias in fields:
+        actual = key_map.get(alias, alias)
+        # Create the key that will be used in the output dict
+        key = camelcase(prefix + alias)
 
-    for name in fields:
-        rel_options = {}
+        # Get the field value. Use the mapped value to the actually property or
+        # method name. `value` may be a number of things, so the various types
+        # are checked below.
+        value = get_field_value(obj, actual)
 
-        key = prefix + name
-        # Get the field value, this may be a number of things
-        value = get_field_value(obj, name)
+        # Related objects, perform some checks on their options
+        if isinstance(value, (models.Model, QuerySet)):
+            rel_options = related.get(actual, {})
+            # Propagate `camelcase` option by default
+            rel_options.setdefault('camelcase', camelcase)
 
-        # Foreign key or one-to-one
-        if isinstance(value, models.Model):
-            rel_options = related.get(name, {})
             rel_prefix = rel_options.get('key_prefix', '')
+
+            # If the `key_prefix` follows the below template, generate the
+            # `key_prefix` for the related object
             if rel_prefix and '%(accessor)s' in rel_prefix:
-                rel_options['key_prefix'] = rel_prefix % {'accessor': name}
+                rel_options['key_prefix'] = rel_prefix % {'accessor': alias}
 
-            # Recursve, get the dict representation
-            rel_obj_dict = model_to_dict(value, keymap=keymap, camelize=camelize, **rel_options)
+            if isinstance(value, models.Model):
+                # Recursve, get the dict representation
+                rel_obj_dict = serialize(value, **rel_options)
 
-            # Check if this object should be merged into the parent object
-            if rel_options.get('merge', False):
-                for k, v in rel_obj_dict.iteritems():
-                    obj_dict[camelize(keymap.get(k, k))] = v
+                # Check if this object should be merged into the parent object,
+                # otherwise nest it under the accessor name
+                if rel_options.get('merge', False):
+                    obj_dict.update(rel_obj_dict)
+                else:
+                    obj_dict[key] = rel_obj_dict
             else:
-                obj_dict[camelize(keymap.get(key, key))] = rel_obj_dict
-
-        elif isinstance(value, QuerySet):
-            rel_options = related.get(name, {})
-            rel_list = queryset_to_list(value, keymap=keymap, camelize=camelize, **rel_options)
-            if rel_list:
-                obj_dict[camelize(keymap.get(key, key))] = rel_list
+                obj_dict[key] = serialize(value, **rel_options)
         else:
-            obj_dict[camelize(keymap.get(key, key))] = value
+            obj_dict[key] = value
 
     return obj_dict
 
 
-def queryset_to_list(queryset, fields=None, exclude=None, **options):
+def queryset_to_list(queryset, fields, **options):
+    # If the `select_related` option is defined, update the `QuerySet`
     if 'select_related' in options:
         queryset = queryset.select_related(*options['select_related'])
 
     if options.get('values_list', False):
-        fields = parse_selectors(queryset.model, fields, exclude)
-
         # Flatten if only one field is being selected
         if len(fields) == 1:
             flat = options.get('flat', True)
@@ -189,42 +198,41 @@ def queryset_to_list(queryset, fields=None, exclude=None, **options):
             queryset = queryset.values_list(*fields)
         return list(queryset)
 
-    return map(lambda x: model_to_dict(x, fields=fields, exclude=exclude, **options), queryset.iterator())
+    return map(lambda x: obj_to_dict(x, fields, **options),
+            queryset.iterator())
 
 
-
-def serialize(obj, keymap=None, camelize=False, **options):
+def serialize(obj, fields=None, exclude=None, **options):
     """Recursively attempts to find ``Model`` and ``QuerySet`` instances
     to convert them into their representative datastructure per their
     ``Resource`` (if one exists).
     """
-    keymap = keymap or {}
-
-    # This will be handled at the iteration
-    if camelize is True:
-        camelize = convert_to_camel
-    elif camelize is False:
-        camelize = lambda x: x
+    camelcase = options.get('camelcase', False)
+    # Explicit check for boolean value since during recursion, the function
+    # will be propagated (if unchanged)
+    if camelcase is True:
+        options['camelcase'] = convert_to_camel
+    elif camelcase is False:
+        options['camelcase'] = lambda x: x
 
     # Handle model instances
     if isinstance(obj, models.Model):
-        obj = model_to_dict(obj, keymap=keymap, camelize=camelize,
-            **options)
+        fields = parse_selectors(obj.__class__, fields, exclude, **options)
+        return obj_to_dict(obj, fields, **options)
 
     # Handle querysets
-    elif isinstance(obj, QuerySet):
-        obj = queryset_to_list(obj, keymap=keymap, camelize=camelize,
-            **options)
+    if isinstance(obj, QuerySet):
+        fields = parse_selectors(obj.model, fields, exclude, **options)
+        return queryset_to_list(obj, fields, **options)
 
     # Handle dict instances
-    elif isinstance(obj, dict):
-        for k, v in obj.iteritems():
-            obj[camelize(keymap.get(k, k))] = serialize(v, keymap=keymap,
-                camelize=camelize, **options)
+    if isinstance(obj, dict):
+        exclude = exclude or []
+        if not fields:
+            fields = obj.iterkeys()
+        fields = [x for x in fields if x not in exclude]
+        return obj_to_dict(obj, fields, **options)
 
     # Handle other iterables
-    elif hasattr(obj, '__iter__'):
-        obj = map(lambda x: serialize(x, keymap=keymap, camelize=camelize, **options), iter(obj))
-
-    return obj
-
+    if hasattr(obj, '__iter__'):
+        return map(lambda x: serialize(x, fields, exclude, **options), obj)

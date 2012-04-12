@@ -200,9 +200,9 @@ passed to ``serialize``:
 
 * `fields` - A list of fields names to include. Method names can also be
 specified that will be called when being serialized. Default is all fields
-and local related fields.
+and local related fields. See also: `exclude`, `key_map`
 * `exclude` - A list of fields names to exclude (this takes precedence
-over fields). Default is `None`.
+over fields). Default is `None`. See also: `fields`, `key_map`
 * `related` - A dict of related object accessor and configs (see below) for
 handling related object.
 * `values_list` - This option only applies to `QuerySet`s. Returns a list of
@@ -214,14 +214,14 @@ If `True`, flattens out the list of lists into a single list of values. Default 
 * `key_prefix` - A string to be use to prefix the dictionary keys. To enable dynamic
 prefixes, the prefix may contain `'%(accessor)s' which will be the class name for
 top-level objects or the accessor name for related objects. Default is `None`.
-* `keymap` - A dict that maps field/method names to the keys of the
-output dictionary. Default is `None`.
-* `camelize` - Converts all keys (after `keymap` is applied) to a camel-case
-equivalent. This is merely a convenience for conforming to language convention
-for consumers of this content, e.g. JavaScript. Default is `False`
+* `key_map` - A dict that maps  the keys of the output dictionary to the actual
+field/method names referencing the data. Default is `None`.  See also: `fields`
+* `camelcase` - Converts all keys to a camel-case equivalent. This is merely a
+convenience for conforming to language convention for consumers of this content,
+e.g. JavaScript. Default is `False`.
 
 ```python
->>> serialize(user, fields=['username', 'get_full_name'], keymap={'get_full_name': 'full_name'}, camelize=True)
+>>> serialize(user, fields=['username', 'full_name'], key_map={'full_name': 'get_full_name'}, camelcase=True)
 {
     'fullName': u'Jon Doe',
     'username': u'jdoe'
@@ -254,15 +254,19 @@ relational fields. The following additional attributes (to the above) may be
 defined:
 
 * `merge` - This option only applies to local `ForeignKey` or `OneToOneField`. This
-allows for merge this object's fields into the parent object, e.g. a user and
+allows for merging this object's fields into the parent object, e.g. a user and
 their profile.
 
 ```python
->>> serialize(user, related={'groups': {'fields': ['name']}})
+>>> serialize(user, related={'groups': {'fields': ['name'], 'profile': {'merge': True}}})
 {
     'username': u'jdoe',
     'groups': [{
         'name': u'Managers'
     }]
+    # profile attributes merged into the user
+    'twitter': '@jdoe',
+    'mobile': '123-456-7890',
+    ...
 }
 ```
