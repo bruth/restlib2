@@ -367,6 +367,13 @@ class Resource(object):
                     response.status_code = codes.not_modified
                     return response
 
+        # Check if there is a request body
+        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
+            content_type = request._content_type
+            if content_type in serializers:
+                request.data = serializers.decode(content_type, request.body)
+
+
     # ## Process the normal response returned by the handler
     def process_response(self, request, response):
         content = ''
