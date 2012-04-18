@@ -101,7 +101,7 @@ def parse_selectors(model, fields=None, exclude=None, key_map=None, **options):
 
         if cleaned is None:
             raise AttributeError('The "{0}" attribute could not be found '
-                'on the model "{1}"'.format(name, model))
+                'on the model "{1}"'.format(actual, model))
 
         # Mapped value, so use the original name listed in `fields`
         if type(cleaned) is list:
