@@ -71,14 +71,8 @@ class ModelFieldResolver(object):
         if attr in PSEUDO_SELECTORS:
             return fields[attr].keys()
 
-        # Model field
-        elif attr in fields[':all']:
-            return attr
-
-        # Property or method
-        elif hasattr(model, attr):
-            return attr
-
+        # Assume a field or property
+        return attr
 
 resolver = ModelFieldResolver()
 
