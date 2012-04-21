@@ -391,7 +391,7 @@ class Resource(object):
         # bother with the local content.
         if isinstance(content, basestring):
             response.content = content
-        else:
+        elif content is not None:
             if hasattr(request, '_accept_type'):
                 # Encode the body
                 content = serializers.encode(request._accept_type, content)
