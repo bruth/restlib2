@@ -213,23 +213,14 @@ class Resource(object):
             # Attempt to process the request given the corresponding `request.method`
             # handler.
             method_handler = getattr(self, request.method.lower())
-            try:
-                response = method_handler(request, *args, **kwargs)
-            except Exception, exception:
-                response = self.process_exception(request, exception)
-                if isinstance(response, HttpResponse):
-                    return response
-                raise exception
+            response = method_handler(request, *args, **kwargs)
+            if isinstance(response, HttpResponse):
+                return response
 
         # Process the response, check if the response is overridden and
         # use that instead.
         # TODO not sure if this is sound for a simple resource
         return self.process_response(request, response)
-
-    def process_exception(self, request, exception):
-        "Override to handle any exception raised during processing."
-        # Do nothing. Let Django process the exception
-        raise exception
 
     def process_request(self, request, *args, **kwargs):
         # Initilize a new response for this request. Passing the response along
