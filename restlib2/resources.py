@@ -214,8 +214,6 @@ class Resource(object):
             # handler.
             method_handler = getattr(self, request.method.lower())
             response = method_handler(request, *args, **kwargs)
-            if isinstance(response, HttpResponse):
-                return response
 
         # Process the response, check if the response is overridden and
         # use that instead.
@@ -380,15 +378,12 @@ class Resource(object):
 
         # If the response already has a `_raw_content` attribute, do not
         # bother with the local content.
-        if isinstance(content, basestring):
-            response.content = content
-        elif content is not None:
-            if hasattr(request, '_accept_type'):
+        if content is not None:
+            if not isinstance(content, basestring) and hasattr(request, '_accept_type'):
                 # Encode the body
                 content = serializers.encode(request._accept_type, content)
                 response['Content-Type'] = request._accept_type
 
-        if content is not None:
             response.content = content
             content_length = len(response.content)
 
