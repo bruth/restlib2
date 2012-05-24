@@ -114,7 +114,7 @@ def get_field_value(obj, name):
     elif hasattr(obj, '__getitem__'):
         value = obj[name]
     else:
-        raise ValueError('{} has not attribute {}'.format(obj, name))
+        raise ValueError('{} has no attribute {}'.format(obj, name))
 
     # Check for callable
     if callable(value):
