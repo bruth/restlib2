@@ -376,16 +376,18 @@ class Resource(object):
             content = response
             response = HttpResponse()
 
+        accept_type = getattr(request, '_accept_type', None)
+
         # If the response already has a `_raw_content` attribute, do not
         # bother with the local content.
-        if content is not None:
-            if not isinstance(content, basestring) and hasattr(request, '_accept_type'):
+        if content != '':
+            if not isinstance(content, basestring) and serializers.supports_encoding(accept_type):
                 # Encode the body
-                content = serializers.encode(request._accept_type, content)
-                response['Content-Type'] = request._accept_type
-
+                content = serializers.encode(accept_type, content)
+                response['Content-Type'] = accept_type
             response.content = content
-            content_length = len(response.content)
+
+        content_length = len(response.content)
 
         if content_length == 0:
             del response['Content-Type']
