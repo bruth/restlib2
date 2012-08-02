@@ -380,7 +380,7 @@ class Resource(object):
 
         # If the response already has a `_raw_content` attribute, do not
         # bother with the local content.
-        if content != '':
+        if content is not None and content != '':
             if not isinstance(content, basestring) and serializers.supports_encoding(accept_type):
                 # Encode the body
                 content = serializers.encode(accept_type, content)
