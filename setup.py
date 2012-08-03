@@ -71,18 +71,18 @@ version = __import__(main_package).get_version()
 
 setup(
     version = version,
-    name = 'django-restlib2',
+    name = 'restlib2',
     author = 'Byron Ruth',
     author_email = 'b@devel.io',
     description = 'Django REST API',
     license = 'BSD',
     keywords = 'REST Django HTTP HATEOAS',
-    url = 'https://github.com/bruth/django-restlib2',
+    url = 'https://github.com/bruth/restlib2',
 
     packages = packages,
     cmdclass = cmdclasses,
 
-    install_requires = ['django>=1.3'],
+    install_requires = ['django>=1.4'],
 
     data_files = data_files,
     classifiers = [
