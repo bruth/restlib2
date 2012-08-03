@@ -1,3 +1,4 @@
+import time
 import hashlib
 import mimeparse
 # http://mail.python.org/pipermail/python-list/2010-March/1239510.html
@@ -5,15 +6,24 @@ from calendar import timegm
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.http import HttpResponse, HttpRequest
-from django.core.cache import cache
-from django.utils.http import http_date, parse_http_date
-from http import codes, methods
-from serializers import serializers
+from django.utils.http import http_date, parse_http_date, parse_etags, quote_etag
+from django.utils.cache import patch_cache_control
+from .http import codes, methods
+from .serializers import serializers
 
 EPOCH_DATE = datetime(1970, 1, 1, 0, 0, 0)
 
 # Convenience function for checking for existent, callable methods
 usable = lambda x, y: callable(getattr(x, y, None))
+
+
+class UncacheableResponse(HttpResponse):
+    "Response class that will never be cached."
+    def __init__(self, *args, **kwargs):
+        super(UncacheableResponse, self).__init__(*args, **kwargs)
+        self['Expires'] = 0
+        self['Pragma'] = self['Cache-Control'] = 'no-cache'
+
 
 # ## Resource Metaclass
 # Sets up a few helper components for the `Resource` class.
@@ -185,21 +195,22 @@ class Resource(object):
 
     # ### Expiration Caching
 
-    # Define a default `Cache-Control` setting for cacheable responses.
-    # Setting `local_cache_age` to some value in seconds enables local
-    # cache of the response, e.g. a browser. Setting `proxy_cache_age`
-    # allows proxies to also cache the response. Do **not** enable cache
-    # for proxies if this is user-specific content.
-    # References:
+    # Define a maximum cache age in seconds or as a date this resource is valid
+    # for. If an integer in seconds is specified, the 'Cache-Control' 'max-age'
+    # attribute will be used. If a timedelta is specified, the 'Expires' header
+    # will be used with a calculated date. Both of these mechanisms are
+    # non-conditional and  are considered _strong_ cache headers. Clients (such
+    # as browsers) will not send send a conditional request until the resource
+    # has expired locally, this is sometimes referred to as a _cold cache_.
+    # Most dynamic resources will want to set this to 0, unless it's a
+    # read-only resource that is ok to be a bit stale.
     # - http://www.odino.org/301/rest-better-http-cache
     # - http://www.subbu.org/blog/2005/01/http-caching
-    local_cache_age = None
-    proxy_cache_age = None
+    cache_max_age = None
 
-    # #### Availability over consistency...
-    # Allow for stale cache
-    stale_cache_on_error = None
-    stale_cache_on_revalidate = None
+    # Defines whether this resource cache should be shared across clients,
+    # i.e. cached by downstream cache proxies.
+    private_cache = False
 
     # ## Initialize Once, Process Many
     # Every `Resource` class can be initialized once since they are stateless
@@ -210,8 +221,8 @@ class Resource(object):
         response = self.process_request(request, *args, **kwargs)
 
         if not isinstance(response, HttpResponse):
-            # Attempt to process the request given the corresponding `request.method`
-            # handler.
+            # Attempt to process the request given the corresponding
+            # `request.method` handler.
             method_handler = getattr(self, request.method.lower())
             response = method_handler(request, *args, **kwargs)
 
@@ -220,216 +231,24 @@ class Resource(object):
         # TODO not sure if this is sound for a simple resource
         return self.process_response(request, response)
 
-    def process_request(self, request, *args, **kwargs):
-        # Initilize a new response for this request. Passing the response along
-        # the request cycle allows for gradual modification of the headers.
-        response = HttpResponse()
-
-        # TODO keep track of a list of request headers used to
-        # determine the resource representation for the 'Vary'
-        # header.
-
-        # ### 503 Service Unavailable
-        # The server does not need to be unavailable for a resource to be
-        # unavailable...
-        if self.is_service_unavailable(request, response, *args, **kwargs):
-            response.status_code = codes.service_unavailable
-            return response
-
-        # ### 414 Request URI Too Long _(not implemented)_
-        # This should be be handled upstream by the Web server
-
-        # ### 400 Bad Request _(not implemented)_
-        # Note that many services respond with this code when entities are
-        # unprocessable. This should really be a 422 Unprocessable Entity
-
-        # ### 401 Unauthorized
-        # Check if the request is authorized to access this resource.
-        if self.is_unauthorized(request, response, *args, **kwargs):
-            response.status_code = codes.unauthorized
-            return response
-
-        # ### 403 Forbidden
-        # Check if this resource is forbidden for the request.
-        if self.is_forbidden(request, response, *args, **kwargs):
-            response.status_code = codes.forbidden
-            return response
-
-        # ### 501 Not Implemented _(not implemented)_
-        # This technically refers to a service-wide response for an
-        # unimplemented request method.
-
-        # ### 429 Too Many Requests
-        # Both `rate_limit_count` and `rate_limit_seconds` must be none
-        # falsy values to be checked.
-        if self.rate_limit_count and self.rate_limit_seconds:
-            if self.is_too_many_requests(request, response, *args, **kwargs):
-                response.status_code = codes.too_many_requests
-                return response
-
-        # ### Process an _OPTIONS_ request
-        # Enough processing has been performed to allow an OPTIONS request.
-        if request.method == methods.OPTIONS and 'OPTIONS' in self.allowed_methods:
-            return self.options(request, response)
-
-        # ## Request Entity Checks
-        # Only perform these checks if the request has supplied a body.
-        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
-
-            # ### 415 Unsupported Media Type
-            # Check if the entity `Content-Type` supported for decoding.
-            if self.is_unsupported_media_type(request, response, *args, **kwargs):
-                response.status_code = codes.unsupported_media_type
-                return response
-
-            # ### 413 Request Entity Too Large
-            # Check if the entity is too large for processing
-            if self.max_request_entity_length:
-                if self.is_request_entity_too_large(request, response, *args, **kwargs):
-                    response.status_code = codes.request_entity_too_large
-                    return response
-
-        # ### 405 Method Not Allowed
-        if self.is_method_not_allowed(request, response, *args, **kwargs):
-            response.status_code = codes.method_not_allowed
-            return response
-
-        # ### 406 Not Acceptable
-        # Checks Accept and Accept-* headers
-        if self.is_not_acceptable(request, response, *args, **kwargs):
-            response.status_code = codes.not_acceptable
-            return response
-
-        # ### 404 Not Found
-        # Check if this resource exists.
-        if self.is_not_found(request, response, *args, **kwargs):
-            response.status_code = codes.not_found
-            return response
-
-        # ### 410 Gone
-        # Check if this resource used to exist, but does not anymore.
-        if self.is_gone(request, response, *args, **kwargs):
-            response.status_code = codes.gone
-            return response
-
-        # ### 428 Precondition Required
-        # Prevents the "lost udpate" problem and requires client to confirm
-        # the state of the resource has not changed since the last `GET`
-        # request. This applies to `PUT` and `PATCH` requests.
-        if self.require_conditional_request:
-            if request.method == methods.PUT or request.method == methods.PATCH:
-                if self.is_precondition_required(request, response, *args, **kwargs):
-                    # HTTP/1.1
-                    response['Cache-Control'] = 'no-cache'
-                    # HTTP/1.0
-                    response['Pragma'] = 'no-cache'
-                    response.status_code = codes.precondition_required
-                    return response
-
-        # ### 412 Precondition Failed
-        # Conditional requests applies to GET, HEAD, PUT, and PATCH.
-        # For GET and HEAD, the request checks the either the entity changed
-        # since the last time it requested it, `If-Modified-Since`, or if the
-        # entity tag (ETag) has changed, `If-None-Match`.
-        if request.method == methods.PUT or request.method == methods.PATCH:
-            if self.is_precondition_failed(request, response, *args, **kwargs):
-                # HTTP/1.1
-                response['Cache-Control'] = 'no-cache'
-                # HTTP/1.0
-                response['Pragma'] = 'no-cache'
-                response.status_code = codes.precondition_failed
-                return response
-
-        # Check for conditional GET or HEAD request
-        if request.method == methods.GET or request.method == methods.HEAD:
-            if self.use_etags and 'HTTP_IF_NONE_MATCH' in request.META:
-                request_etag = request.META['HTTP_IF_NONE_MATCH'].strip('"')
-                etag = self.get_etag(request, request_etag)
-                if request_etag == etag:
-                    response.status_code = codes.not_modified
-                    return response
-
-            if self.use_last_modified and 'HTTP_IF_MODIFIED_SINCE' in request.META:
-                last_modified = self.get_last_modified(request, *args, **kwargs)
-                known_last_modified = EPOCH_DATE + timedelta(seconds=parse_http_date(request.META['HTTP_IF_MODIFIED_SINCE']))
-                if known_last_modified >= last_modified:
-                    response.status_code = codes.not_modified
-                    return response
-
-        # Check if there is a request body
-        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
-            content_type = request._content_type
-            if content_type in serializers:
-                request.data = serializers.decode(content_type, request.body)
-
-
-    # ## Process the normal response returned by the handler
-    def process_response(self, request, response):
-        content = ''
-        content_length = 0
-
-        if isinstance(response, HttpResponse):
-            if hasattr(response, '_raw_content'):
-                content = response._raw_content
-                del response._raw_content
-        else:
-            content = response
-            response = HttpResponse()
-
-        accept_type = getattr(request, '_accept_type', None)
-
-        # If the response already has a `_raw_content` attribute, do not
-        # bother with the local content.
-        if content is not None and content != '':
-            if not isinstance(content, basestring) and serializers.supports_encoding(accept_type):
-                # Encode the body
-                content = serializers.encode(accept_type, content)
-                response['Content-Type'] = accept_type
-            response.content = content
-
-        content_length = len(response.content)
-
-        if content_length == 0:
-            del response['Content-Type']
-            if response.status_code == codes.ok:
-                response.status_code = codes.no_content
-        else:
-            response['Content-Length'] = str(content_length)
-
-        if self.use_etags:
-            self.set_etag(request, response)
-
-        return response
-
-    # ## Request Programatically
-    # For composite resources, `resource.apply` can be used on related resources
-    # with the original `request`.
-    def apply(self, request, *args, **kargs):
-        pass
-
     # ## Request Method Handlers
     # ### _HEAD_ Request Handler
     # Default handler for _HEAD_ requests. For this to be available,
     # a _GET_ handler must be defined.
     def head(self, request, *args, **kwargs):
-        self.get(request, *args, **kwargs)
+        return self.get(request, *args, **kwargs)
 
     # ### _OPTIONS_ Request Handler
     # Default handler _OPTIONS_ requests.
     def options(self, request, *args, **kwargs):
-        response = HttpResponse()
+        response = UncacheableResponse()
 
         # See [RFC 5789][0]
         # [0]: http://tools.ietf.org/html/rfc5789#section-3.1
         if 'PATCH' in self.allowed_methods:
             response['Accept-Patch'] = ', '.join(self.supported_patch_types)
-
         response['Allow'] = ', '.join(sorted(self.allowed_methods))
         response['Content-Length'] = 0
-        # HTTP/1.1
-        response['Cache-Control'] = 'no-cache'
-        # HTTP/1.0
-        response['Pragma'] = 'no-cache'
         return response
 
 
@@ -539,7 +358,7 @@ class Resource(object):
         # ETag value is used for the conditional requests. After the request
         # method handler has been processed, the new ETag will be calculated.
         if self.use_etags and 'HTTP_IF_MATCH' in request.META:
-            request_etag = request.META['HTTP_IF_MATCH'].strip('"')
+            request_etag = parse_etags(request.META['HTTP_IF_MATCH'])[0]
             etag = self.get_etag(request, request_etag)
             if request_etag != etag:
                 return True
@@ -593,7 +412,7 @@ class Resource(object):
 
         # If `supported_accept_types` is empty, it is assumed that the resource
         # will return whatever it wants.
-        if len(self.supported_accept_types):
+        if self.supported_accept_types:
             response._accept_type = self.supported_accept_types[0]
         return True
 
@@ -609,7 +428,6 @@ class Resource(object):
     def accept_language_supported(self, request, response):
         return True
 
-
     # ## Conditionl Request Handlers
 
     # ### Get/Calculate ETag
@@ -621,25 +439,34 @@ class Resource(object):
     # For PUT, PATCH, and DELETE requests, the `If-Match` header may be
     # set to ensure the entity is the same as the cllient's so the current
     # operation is valid (optimistic concurrency).
-    def get_etag(self, request, etag=None):
+    def get_etag(self, request, response, etag=None):
+        cache = self.get_cache(request, response)
         # Check cache first
         if etag is not None and etag in cache:
             return etag
 
+    # If the Etag has been set already upstream use it, otherwise calculate
     def set_etag(self, request, response):
         if 'ETag' in response:
-            etag = response['ETag'].strip('"')
+            etag = parse_etags(response['ETag'])[0]
         else:
             etag = hashlib.md5(response.content).hexdigest()
-            response['ETag'] = '"{}"'.format(etag)
-        cache.set(etag, 1, 20)
+            response['ETag'] = quote_etag(etag)
+        # Cache the etag for subsequent look ups
+        cache = self.get_cache(request, response)
+        cache.set(etag, 1, self.cache_max_age)
 
-    # ### Calculate Last Modified Datetime
+    # ### Get/Calculate Last Modified Datetime
     # Calculates the last modified time for the requested entity.
     # Provides the client the last modified of the entity for future
     # conditional requests.
     def get_last_modified(self, request):
         return datetime.now()
+
+    # Set the last modified date on the response
+    def set_last_modified(self, request, response):
+        if 'Last-Modified' not in response:
+            response['Last-Modified'] = self.get_last_modified(request)
 
     # ### Calculate Expiry Datetime
     # (not implemented)
@@ -647,9 +474,14 @@ class Resource(object):
     # Informs the client when the entity will be invalid. This is most
     # useful for clients to only refresh when they need to, otherwise the
     # client's local cache is used.
-    def get_expiry(self, request, *args, **kwargs):
-        pass
+    def get_expiry(self, request, cache_timeout=None):
+        if cache_timeout is None:
+            cache_timeout = self.cache_max_age
+        return time.time() + cache_timeout
 
+    def set_expiry(self, request, response, cache_timeout=None):
+        if 'Expires' not in response:
+            response['Expires'] = http_date(self.get_expiry(request, cache_timeout))
 
     # ## Entity Content-* handlers
 
@@ -670,3 +502,228 @@ class Resource(object):
 
     def content_language_supported(self, request, response, *args, **kwargs):
         return True
+
+    # Utility methods
+    def serialize(self, request, response, content, accept_type=None):
+        if content is None:
+            response.status_code = codes.no_content
+        elif isinstance(content, basestring) or isinstance(content, file):
+            response.content = content
+        else:
+            accept_type = accept_type or getattr(request, '_accept_type', None)
+            if accept_type and serializers.supports_encoding(accept_type):
+                response.content = serializers.encode(accept_type, content)
+            response['Content-Type'] = accept_type
+
+    def get_cache(self, request, response):
+        "Returns the cache to be used for various components."
+        from django.core.cache import cache
+        return cache
+
+    def get_cache_timeout(self, request, response):
+        if isinstance(self.cache_max_age, timedelta):
+            return datetime.now() + self.cache_max_age
+        return self.cache_max_age
+
+    def response_cache_control(self, request, response):
+        cc = {}
+        timeout = self.get_cache_timeout(request, response)
+        # If explicit 0, do no apply max-age or expires
+        if isinstance(timeout, datetime):
+            response['Expires'] = http_date(timegm(timeout.utctimetuple()))
+        elif isinstance(self.cache_max_age, int):
+            cc['max_age'] = self.cache_max_age
+
+        if self.private_cache:
+            cc['private'] = True
+        else:
+            cc['public'] = True
+
+        patch_cache_control(response, **cc)
+        response['Pragma'] = response['Cache-Control']
+
+    # Process methods
+    def process_request(self, request, *args, **kwargs):
+        # Initilize a new response for this request. Passing the response along
+        # the request cycle allows for gradual modification of the headers.
+        response = HttpResponse()
+
+        # TODO keep track of a list of request headers used to
+        # determine the resource representation for the 'Vary'
+        # header.
+
+        # ### 503 Service Unavailable
+        # The server does not need to be unavailable for a resource to be
+        # unavailable...
+        if self.is_service_unavailable(request, response, *args, **kwargs):
+            response.status_code = codes.service_unavailable
+            return response
+
+        # ### 414 Request URI Too Long _(not implemented)_
+        # This should be be handled upstream by the Web server
+
+        # ### 400 Bad Request _(not implemented)_
+        # Note that many services respond with this code when entities are
+        # unprocessable. This should really be a 422 Unprocessable Entity
+        # Most actualy bad requests are handled upstream by the Web server
+        # when parsing the HTTP message
+
+        # ### 401 Unauthorized
+        # Check if the request is authorized to access this resource.
+        if self.is_unauthorized(request, response, *args, **kwargs):
+            response.status_code = codes.unauthorized
+            return response
+
+        # ### 403 Forbidden
+        # Check if this resource is forbidden for the request.
+        if self.is_forbidden(request, response, *args, **kwargs):
+            response.status_code = codes.forbidden
+            return response
+
+        # ### 501 Not Implemented _(not implemented)_
+        # This technically refers to a service-wide response for an
+        # unimplemented request method, again this is upstream.
+
+        # ### 429 Too Many Requests
+        # Both `rate_limit_count` and `rate_limit_seconds` must be none
+        # falsy values to be checked.
+        if self.rate_limit_count and self.rate_limit_seconds:
+            if self.is_too_many_requests(request, response, *args, **kwargs):
+                response.status_code = codes.too_many_requests
+                return response
+
+        # ### Process an _OPTIONS_ request
+        # Enough processing has been performed to allow an OPTIONS request.
+        if request.method == methods.OPTIONS and 'OPTIONS' in self.allowed_methods:
+            return self.options(request, response)
+
+        # ## Request Entity Checks
+        # Only perform these checks if the request has supplied a body.
+        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
+
+            # ### 415 Unsupported Media Type
+            # Check if the entity `Content-Type` supported for decoding.
+            if self.is_unsupported_media_type(request, response, *args, **kwargs):
+                response.status_code = codes.unsupported_media_type
+                return response
+
+            # ### 413 Request Entity Too Large
+            # Check if the entity is too large for processing
+            if self.max_request_entity_length:
+                if self.is_request_entity_too_large(request, response, *args, **kwargs):
+                    response.status_code = codes.request_entity_too_large
+                    return response
+
+        # ### 405 Method Not Allowed
+        if self.is_method_not_allowed(request, response, *args, **kwargs):
+            response.status_code = codes.method_not_allowed
+            return response
+
+        # ### 406 Not Acceptable
+        # Checks Accept and Accept-* headers
+        if self.is_not_acceptable(request, response, *args, **kwargs):
+            response.status_code = codes.not_acceptable
+            return response
+
+        # ### 404 Not Found
+        # Check if this resource exists. Note, if this requires a database
+        # lookup or some other expensive lookup, the relevant object may
+        # be _attached_ to the request or response object to be used
+        # dowstream in the handler. This prevents multiple database
+        # hits or filesystem lookups.
+        if self.is_not_found(request, response, *args, **kwargs):
+            response.status_code = codes.not_found
+            return response
+
+        # ### 410 Gone
+        # Check if this resource used to exist, but does not anymore. A common
+        # strategy for this when dealing with this in a database context is to
+        # have an `archived` or `deleted` flag that can be used associated with
+        # the given lookup key while the rest of the content in the row may be
+        # deleted.
+        if self.is_gone(request, response, *args, **kwargs):
+            response.status_code = codes.gone
+            return response
+
+        # ### 428 Precondition Required
+        # Prevents the "lost udpate" problem and requires client to confirm
+        # the state of the resource has not changed since the last `GET`
+        # request. This applies to `PUT` and `PATCH` requests.
+        if self.require_conditional_request:
+            if request.method == methods.PUT or request.method == methods.PATCH:
+                if self.is_precondition_required(request, response, *args, **kwargs):
+                    return UncacheableResponse(status=codes.precondition_required)
+
+        # ### 412 Precondition Failed
+        # Conditional requests applies to GET, HEAD, PUT, and PATCH.
+        # For GET and HEAD, the request checks the either the entity changed
+        # since the last time it requested it, `If-Modified-Since`, or if the
+        # entity tag (ETag) has changed, `If-None-Match`.
+        if request.method == methods.PUT or request.method == methods.PATCH:
+            if self.is_precondition_failed(request, response, *args, **kwargs):
+                return UncacheableResponse(status=codes.precondition_failed)
+
+        # Check for conditional GET or HEAD request
+        if request.method == methods.GET or request.method == methods.HEAD:
+
+            # Check Etags before Last-Modified...
+            if self.use_etags and 'HTTP_IF_NONE_MATCH' in request.META:
+                # Parse request Etags (only one is currently supported)
+                request_etag = parse_etags(request.META['HTTP_IF_NONE_MATCH'])[0]
+
+                # Check if the request Etag is valid. The current Etag is
+                # supplied to enable strategies where the etag does not need
+                # to be used to regenerate the Etag. This may include
+                # generating an MD5 of the resource and storing it as a key
+                # in memcache.
+                etag = self.get_etag(request, response, request_etag, *args, **kwargs)
+
+                # Nothing has changed, simply return
+                if request_etag == etag:
+                    response.status_code = codes.not_modified
+                    return response
+
+            if self.use_last_modified and 'HTTP_IF_MODIFIED_SINCE' in request.META:
+                # Get the last known modified date from the client, compare it
+                # to the last modified date of the resource
+                last_modified = self.get_last_modified(request, *args, **kwargs)
+                known_last_modified = EPOCH_DATE + timedelta(seconds=parse_http_date(request.META['HTTP_IF_MODIFIED_SINCE']))
+
+                if known_last_modified >= last_modified:
+                    response.status_code = codes.not_modified
+                    return response
+
+        # Check if there is a request body
+        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
+            content_type = request._content_type
+            if content_type in serializers:
+                request.data = serializers.decode(content_type, request.body)
+
+    # ## Process the normal response returned by the handler
+    def process_response(self, request, response):
+        if not isinstance(response, HttpResponse):
+            content = response
+            response = HttpResponse()
+
+            if request.method != methods.HEAD:
+                self.serialize(request, response, content)
+
+        if request.method == methods.HEAD:
+            response.content = ''
+
+        if request.method == methods.GET or request.method == methods.HEAD:
+            self.response_cache_control(request, response)
+
+            if self.use_etags:
+                self.set_etag(request, response)
+
+            if self.use_last_modified:
+                self.set_last_modified(request, response)
+
+        return response
+
+    # ## Request Programatically
+    # For composite resources, `resource.apply` can be used on related resources
+    # with the original `request`.
+    def apply(self, request, *args, **kargs):
+        pass

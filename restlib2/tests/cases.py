@@ -18,29 +18,39 @@ class ResourceTestCase(unittest.TestCase):
         self.assertEqual(resource.allowed_methods, ('OPTIONS',))
 
         # OPTIONS is successful, default response with no content is a 204
-        request = self.factory.request(REQUEST_METHOD='OPTIONS')
+        request = self.factory.options('/')
         response = resource(request)
-        self.assertEqual(response.status_code, codes.no_content)
+        self.assertEqual(response.status_code, codes.ok)
 
         # Try another non-default method
-        request = self.factory.request()
+        request = self.factory.get('/')
         response = resource(request)
         self.assertEqual(response.status_code, codes.method_not_allowed)
         self.assertEqual(response['Allow'], 'OPTIONS')
+
+    def test_default_head(self):
+        class GetResource(Resource):
+            def get(self, request):
+                return '{}'
+
+        resource = GetResource()
+
+        request = self.factory.head('/')
+        response = resource(request)
+        self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response.content, '')
 
     def test_default_patch(self):
         # Resources supporting PATCH requests should have an additional
         # header in the response from an OPTIONS request
         class PatchResource(Resource):
-            allowed_methods = ('PATCH', 'OPTIONS')
-
             def patch(self, request):
                 pass
 
         resource = PatchResource()
-        request = self.factory.request(REQUEST_METHOD='OPTIONS')
+        request = self.factory.options('/')
         response = resource(request)
-        self.assertEqual(response.status_code, codes.no_content)
+        self.assertEqual(response.status_code, codes.ok)
         self.assertEqual(response['Accept-Patch'], 'application/json')
 
     def test_service_unavailable(self):
@@ -202,7 +212,7 @@ class ResourceTestCase(unittest.TestCase):
         # First ten requests are ok
         for _ in xrange(0, 10):
             response = resource(request)
-            self.assertEqual(response.status_code, codes.no_content)
+            self.assertEqual(response.status_code, codes.ok)
 
         # Mimic a slight delay
         time.sleep(1)
@@ -217,7 +227,7 @@ class ResourceTestCase(unittest.TestCase):
 
         for _ in xrange(0, 10):
             response = resource(request)
-            self.assertEqual(response.status_code, codes.no_content)
+            self.assertEqual(response.status_code, codes.ok)
 
 
     def test_precondition_required(self):
@@ -339,3 +349,45 @@ class ResourceTestCase(unittest.TestCase):
         request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.not_modified)
+
+    def test_cache_control_default(self):
+        class CacheableResource(Resource):
+            def get(self, request):
+                return '{}'
+
+        resource = CacheableResource()
+
+        request = self.factory.get('/')
+        response = resource(request)
+        self.assertEqual(response['Cache-Control'], 'public')
+
+    def test_cache_control_seconds(self):
+        class CacheableResource(Resource):
+            cache_max_age = 60 * 60 # 1 hour
+
+            def get(self, request):
+                return '{}'
+
+        resource = CacheableResource()
+
+        request = self.factory.get('/')
+        response = resource(request)
+        self.assertEqual(response['Cache-Control'], 'public, max-age=3600')
+
+    def test_cache_control_date(self):
+        from datetime import datetime, timedelta
+        from django.utils.http import http_date
+
+        class CacheableResource(Resource):
+            private_cache = True
+            cache_max_age = timedelta(seconds=60 * 60) # 1 hour
+
+            def get(self, request):
+                return '{}'
+
+        resource = CacheableResource()
+
+        request = self.factory.get('/')
+        response = resource(request)
+        self.assertEqual(response['Cache-Control'], 'private')
+        self.assertEqual(response['Expires'], http_date(timegm((datetime.now() + timedelta(hours=1)).utctimetuple())))

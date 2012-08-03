@@ -20,12 +20,16 @@ class Library(object):
 
     def encode(self, mimetype, data, **kwargs):
         if mimetype not in self.library:
-            raise KeyError, 'Encoder for %s not registered' % mimetype
+            raise KeyError('Encoder for %s not registered' % mimetype)
+        if isinstance(data, basestring):
+            raise TypeError('Content is already a string, cannot encode.')
         return self.library[mimetype].encode(data, **kwargs)
 
     def decode(self, mimetype, data, **kwargs):
         if mimetype not in self.library:
-            raise KeyError, 'Decoder for %s not registered' % mimetype
+            raise KeyError('Decoder for %s not registered' % mimetype)
+        if not isinstance(data, basestring):
+            raise TypeError('Content is not a string, cannot decode.')
         return self.library[mimetype].decode(data, **kwargs)
 
     def supports_encoding(self, mimetype):
