@@ -504,7 +504,7 @@ class Resource(object):
         return True
 
     # Utility methods
-    def serialize(self, request, response, content, accept_type=None):
+    def write(self, request, response, content, accept_type=None):
         if content is None:
             response.status_code = codes.no_content
         elif isinstance(content, basestring) or isinstance(content, file):
@@ -526,20 +526,21 @@ class Resource(object):
         return self.cache_max_age
 
     def response_cache_control(self, request, response):
-        cc = {}
+        attrs = {}
         timeout = self.get_cache_timeout(request, response)
+
         # If explicit 0, do no apply max-age or expires
         if isinstance(timeout, datetime):
             response['Expires'] = http_date(timegm(timeout.utctimetuple()))
-        elif isinstance(self.cache_max_age, int):
-            cc['max_age'] = self.cache_max_age
+        elif isinstance(timeout, int):
+            attrs['max_age'] = timeout
 
         if self.private_cache:
-            cc['private'] = True
+            attrs['private'] = True
         else:
-            cc['public'] = True
+            attrs['public'] = True
 
-        patch_cache_control(response, **cc)
+        patch_cache_control(response, **attrs)
         response['Pragma'] = response['Cache-Control']
 
     # Process methods
@@ -706,7 +707,7 @@ class Resource(object):
             response = HttpResponse()
 
             if request.method != methods.HEAD:
-                self.serialize(request, response, content)
+                self.write(request, response, content)
 
         if request.method == methods.HEAD:
             response.content = ''
