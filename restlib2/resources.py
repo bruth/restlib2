@@ -12,6 +12,7 @@ from .http import codes, methods
 from .serializers import serializers
 
 EPOCH_DATE = datetime(1970, 1, 1, 0, 0, 0)
+MAX_CACHE_AGE = 60 * 60 * 24 * 30
 
 # Convenience function for checking for existent, callable methods
 usable = lambda x, y: callable(getattr(x, y, None))
@@ -22,7 +23,7 @@ class UncacheableResponse(HttpResponse):
     def __init__(self, *args, **kwargs):
         super(UncacheableResponse, self).__init__(*args, **kwargs)
         self['Expires'] = 0
-        self['Pragma'] = self['Cache-Control'] = 'no-cache'
+        patch_cache_control(self, no_cache=True, must_revalidate=True, max_age=0)
 
 
 # ## Resource Metaclass
@@ -204,13 +205,24 @@ class Resource(object):
     # has expired locally, this is sometimes referred to as a _cold cache_.
     # Most dynamic resources will want to set this to 0, unless it's a
     # read-only resource that is ok to be a bit stale.
+    # - http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.3
     # - http://www.odino.org/301/rest-better-http-cache
     # - http://www.subbu.org/blog/2005/01/http-caching
     cache_max_age = None
 
-    # Defines whether this resource cache should be shared across clients,
-    # i.e. cached by downstream cache proxies.
-    private_cache = False
+    # Defines the cache_type of the response, public, private or no-cache
+    # - http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.1
+    cache_type = None
+
+    # Applies to cache servers. No part of the response will be cached by
+    # downstream cached.
+    # - http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.2
+    cache_no_store = False
+
+    # Applies to cache servers. This ensures a cache always revalidates with
+    # the origin server before responding to a client request.
+    # - http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.4
+    cache_must_revalidate = False
 
     # ## Initialize Once, Process Many
     # Every `Resource` class can be initialized once since they are stateless
@@ -452,9 +464,11 @@ class Resource(object):
         else:
             etag = hashlib.md5(response.content).hexdigest()
             response['ETag'] = quote_etag(etag)
-        # Cache the etag for subsequent look ups
+
+        # Cache the etag for subsequent look ups. This can be cached
+        # indefinitely since these are unique values
         cache = self.get_cache(request, response)
-        cache.set(etag, 1, self.cache_max_age)
+        cache.set(etag, 1, MAX_CACHE_AGE)
 
     # ### Get/Calculate Last Modified Datetime
     # Calculates the last modified time for the requested entity.
@@ -533,15 +547,22 @@ class Resource(object):
         if isinstance(timeout, datetime):
             response['Expires'] = http_date(timegm(timeout.utctimetuple()))
         elif isinstance(timeout, int):
+            if timeout <= 0:
+                timeout = 0
+                attrs['no_cache'] = True
             attrs['max_age'] = timeout
 
-        if self.private_cache:
-            attrs['private'] = True
-        else:
-            attrs['public'] = True
+        if self.cache_must_revalidate:
+            attrs['must_revalidate'] = True
 
-        patch_cache_control(response, **attrs)
-        response['Pragma'] = response['Cache-Control']
+        if self.cache_no_store:
+            attrs['no_store'] = True
+
+        if self.cache_type:
+            attrs[self.cache_type] = True
+
+        if attrs:
+            patch_cache_control(response, **attrs)
 
     # Process methods
     def process_request(self, request, *args, **kwargs):

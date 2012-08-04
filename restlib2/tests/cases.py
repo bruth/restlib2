@@ -259,8 +259,7 @@ class ResourceTestCase(unittest.TestCase):
         request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_required)
-        self.assertEqual(response['Cache-Control'], 'no-cache')
-        self.assertEqual(response['Pragma'], 'no-cache')
+        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate, max-age=0')
 
         # Add the correct header for testing the Etag
         request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json',
@@ -294,8 +293,7 @@ class ResourceTestCase(unittest.TestCase):
             content_type='application/json', HTTP_IF_MATCH='"def456"')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
-        self.assertEqual(response['Cache-Control'], 'no-cache')
-        self.assertEqual(response['Pragma'], 'no-cache')
+        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate, max-age=0')
 
         # Incorrect Etag match on GET, updated content is returned
         request = self.factory.get('/', HTTP_IF_NONE_MATCH='"def456"')
@@ -335,8 +333,7 @@ class ResourceTestCase(unittest.TestCase):
             content_type='application/json', HTTP_IF_UNMODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
-        self.assertEqual(response['Cache-Control'], 'no-cache')
-        self.assertEqual(response['Pragma'], 'no-cache')
+        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate, max-age=0')
 
         # Old last-modified on GET, updated content is returned
         if_modified_since = http_date(timegm((last_modified_date - timedelta(seconds=10)).utctimetuple()))
@@ -359,7 +356,7 @@ class ResourceTestCase(unittest.TestCase):
 
         request = self.factory.get('/')
         response = resource(request)
-        self.assertEqual(response['Cache-Control'], 'public')
+        self.assertFalse('Cache-Control' in response)
 
     def test_cache_control_seconds(self):
         class CacheableResource(Resource):
@@ -372,14 +369,14 @@ class ResourceTestCase(unittest.TestCase):
 
         request = self.factory.get('/')
         response = resource(request)
-        self.assertEqual(response['Cache-Control'], 'public, max-age=3600')
+        self.assertEqual(response['Cache-Control'], 'max-age=3600')
 
     def test_cache_control_date(self):
         from datetime import datetime, timedelta
         from django.utils.http import http_date
 
         class CacheableResource(Resource):
-            private_cache = True
+            cache_type = 'private'
             cache_max_age = timedelta(seconds=60 * 60) # 1 hour
 
             def get(self, request):
