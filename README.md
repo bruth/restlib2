@@ -1,6 +1,6 @@
 Django RESTlib: HTTP for Programmers
 ====================================
-Inspired by [Requests][1], RESTlib2 is an HTTP library which simplifies
+RESTlib2 is an HTTP library which simplifies
 creating dynamic Web resources in Python. RESTlib2 focuses on embracing
 HTTP and enables clean transparent implementations of your resources.
 
@@ -22,8 +22,10 @@ Django is not at fault here. It was not designed to provide a REST API
 with the notion of a _resource_. It's background and intent is
 to make it trivial to stand up websites and the core developers (and
 the community) take an extremely pragmatic approach to achieve this.
+That being said, for very simple APIs Django has a few [helper functions][6]
+for restricting which methods are allowed.
 
-Aside from Django core, [django-tastypie][6] is the most popular app that
+Aside from Django core, [django-tastypie][7] is the most popular app that
 provides an API for defining resources in Django. Unfortunately, tastypie
 has too complicated of an API and too many abstractions to understand
 how it works. The developer must work within the confines of this intricate
@@ -38,23 +40,8 @@ creating dynamic Web resources in Python.
 [3]: https://docs.djangoproject.com/en/1.3/ref/middleware/
 [4]: https://docs.djangoproject.com/en/1.3/topics/conditional-view-processing/
 [5]: https://docs.djangoproject.com/en/1.3/topics/http/decorators/
-[6]: http://django-tastypie.readthedocs.org/en/latest/index.html
-
-Features
---------
-* Familiar API for defining resources using common HTTP terminology
-* Simple API for fully embedding resources or referencing resources by
-  their own endpoint (see [HATEOAS][7])
-* Resource methods (e.g. `get`, `put`, `post`) have access to both the
-  `request` and `response` objects. Augment the response object as needed.
-* Support for defining versions of a resource in the `Content-Type`, e.g.
-  `application/json, version=1`
-* Abstract `Resource` class for quick integration with your favorite
-  Web framework
-* Built-in implementions for common Web frameworks including Django,
-  and Werkzeug
-
-[7]: http://en.wikipedia.org/wiki/HATEOAS
+[6]: https://docs.djangoproject.com/en/1.4/topics/http/decorators/#allowed-http-methods
+[7]: http://django-tastypie.readthedocs.org/en/latest/index.html
 
 Examples
 --------
@@ -67,7 +54,7 @@ import json
 class Author(Resource):
     supported_accept_types = ['application/json']
 
-    def get(self, request, response):
+    def get(self, request):
         return json.dumps([{
             'first_name': 'John',
             'last_name': 'Doe',
@@ -138,16 +125,47 @@ For a large collection of objects, choosing to not embed related resources
 results in the client needing to potentially make hundreds or thousands
 additional requests.
 
-RESTlib2 provides an API for reusing resources by either referencing them
-(first example) or embedding them directly (second example).
+It is recommended to use [django-preserialize](http://bruth.github.com/django-preserialize/)
+for easily creating custom nested objects. By default, preserialize will recursively embed
+any local fields and local related objects.
 
 ```python
->>> book = Book()
->>> book.apply_get()
-[{ ... }, ...]
->>> book.apply_get(pk=1)
-{ ... }
+from preserialize.serialize import serialize
+from library.models import Book
+
+class Author(Resource):
+    supported_accept_types = ['application/json']
+
+    def get(self, request):
+        data = serialize(Book.objects.all())
+        return json.dumps(data)
 ```
+
+For a bit more control, the fields to be included or excluded can be specified:
+
+```
+from preserialize.serialize import serialize
+from library.models import Book
+
+class Author(Resource):
+    supported_accept_types = ['application/json']
+
+    def get(self, request):
+        author_template = {
+            'fields': ['first_name', 'last_name']
+        }
+
+        book_template = {
+            'fields': ['id', 'title', 'publish_date', 'author']
+            # Define the serialization template for the related author
+            'related': {
+                'author': author_template,
+            }
+        }
+        data = serialize(Book.objects.all(), **book_template)
+        return json.dumps(data)
+```
+
 
 Philosophy
 ----------
@@ -162,111 +180,3 @@ Philosophy
 * **Keep it visible.** Resources should be as _visible_ as possible. Do not
   obfuscate or overcomplicate how a request is handled, otherwise processing
   becomes non-deterministic.
-
-
-Utilities for Models and QuerySets
-----------------------------------
-
-``restlib2.utils.serialize`` is a one-stop shop for ensuring an object
-is free of `Model` and `QuerySet` instances. By default, all non-relational
-fields will be included as well as the primary keys of local related fields.
-Thus a serialized user object might look like this:
-
-```python
->>> serialize(user)
-{
-    'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
-    'email': u'jon@doe.com',
-    'first_name': u'Jon',
-    'groups': [5],
-    'id': 1,
-    'is_active': True,
-    'is_staff': True,
-    'is_superuser': True,
-    'last_login': datetime.datetime(2012, 3, 3, 17, 40, 41, 927637),
-    'last_name': u'Doe',
-    'password': u'!',
-    'user_permissions': [1, 2, 3],
-    'username': u'jdoe'
-}
-```
-
-This can then be passed off to an encoder, e.g. JSON, to turn it into a string for
-the response body.
-
-Some of these fields may not be appropriate or relevent to include in the response.
-To customize which fields get included or excluded, the following arguments can be
-passed to ``serialize``:
-
-* `fields` - A list of fields names to include. Method names can also be
-specified that will be called when being serialized. Default is all fields
-and local related fields. See also: `exclude`, `key_map`
-* `exclude` - A list of fields names to exclude (this takes precedence
-over fields). Default is `None`. See also: `fields`, `key_map`
-* `related` - A dict of related object accessor and configs (see below) for
-handling related object.
-* `values_list` - This option only applies to `QuerySet`s. Returns a list of
-lists which the field values (like Django's `ValuesListQuerySet`). Default is
-`False`.
-* `flatten` - Applies only if `values_list` is `True` and one field is specified.
-If `True`, flattens out the list of lists into a single list of values. Default is
-`True`.
-* `key_prefix` - A string to be use to prefix the dictionary keys. To enable dynamic
-prefixes, the prefix may contain `'%(accessor)s' which will be the class name for
-top-level objects or the accessor name for related objects. Default is `None`.
-* `key_map` - A dict that maps  the keys of the output dictionary to the actual
-field/method names referencing the data. Default is `None`.  See also: `fields`
-* `camelcase` - Converts all keys to a camel-case equivalent. This is merely a
-convenience for conforming to language convention for consumers of this content,
-e.g. JavaScript. Default is `False`.
-
-```python
->>> serialize(user, fields=['username', 'full_name'], key_map={'full_name': 'get_full_name'}, camelcase=True)
-{
-    'fullName': u'Jon Doe',
-    'username': u'jdoe'
-}
-
->>> serialize(user, exclude=['password', 'groups', 'permissions'])
-{
-    'date_joined': datetime.datetime(2009, 5, 16, 15, 52, 40),
-    'email': u'jon@doe.com',
-    'first_name': u'Jon',
-    'id': 1,
-    'is_active': True,
-    'is_staff': True,
-    'is_superuser': True,
-    'last_login': datetime.datetime(2012, 3, 3, 17, 40, 41, 927637),
-    'last_name': u'Doe',
-    'username': u'jdoe'
-}
-```
-
-Related Objects
----------------
-Composite resources are common when dealing with data with tight relationships.
-The above `Author` and `Book` example is a good example of this. It is inefficient
-for a client to have to make two separate requests for data that is typically
-always consumed together.
-
-`serialize` supports the `related` keyword argument for defining options for
-relational fields. The following additional attributes (to the above) may be
-defined:
-
-* `merge` - This option only applies to local `ForeignKey` or `OneToOneField`. This
-allows for merging this object's fields into the parent object, e.g. a user and
-their profile.
-
-```python
->>> serialize(user, related={'groups': {'fields': ['name'], 'profile': {'merge': True}}})
-{
-    'username': u'jdoe',
-    'groups': [{
-        'name': u'Managers'
-    }]
-    # profile attributes merged into the user
-    'twitter': '@jdoe',
-    'mobile': '123-456-7890',
-    ...
-}
-```
