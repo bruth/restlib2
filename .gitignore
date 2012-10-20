@@ -1,7 +1,8 @@
 .DS_Store
-*.pyc
 .coverage
-*.swp
-docs
+*.pyc
+*.sw?
 *.egg
 *.egg-info
+docs
+dist
