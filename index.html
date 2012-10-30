@@ -30,16 +30,13 @@
 
       </header>
       <section>
-        <h2>Overview</h2>
+        <h1>Django RESTlib: HTTP for Programmers</h1>
 
-<p>Inspired by <a href="http://python-requests.org">Requests</a>, RESTlib2 is an HTTP library which simplifies
+<p>RESTlib2 is an HTTP library which simplifies
 creating dynamic Web resources in Python. RESTlib2 focuses on embracing
 HTTP and enables clean transparent implementations of your resources.</p>
 
-<p><strong>This is very much a work on progress, but the current code is
-well-tested works as expected.</strong></p>
-
-<h3>Why?</h3>
+<h2>Why?</h2>
 
 <p>Web frameworks typically layer on the abstractions for handling
 the request/response process. These abstractions decrease implementation
@@ -56,7 +53,9 @@ modify the process the request headers or modify the response headers.</p>
 <p>Django is not at fault here. It was not designed to provide a REST API
 with the notion of a <em>resource</em>. It's background and intent is
 to make it trivial to stand up websites and the core developers (and
-the community) take an extremely pragmatic approach to achieve this.</p>
+the community) take an extremely pragmatic approach to achieve this.
+That being said, for very simple APIs Django has a few <a href="https://docs.djangoproject.com/en/1.4/topics/http/decorators/#allowed-http-methods">helper functions</a>
+for restricting which methods are allowed.</p>
 
 <p>Aside from Django core, <a href="http://django-tastypie.readthedocs.org/en/latest/index.html">django-tastypie</a> is the most popular app that
 provides an API for defining resources in Django. Unfortunately, tastypie
@@ -68,39 +67,7 @@ the inferred <em>API</em> HTTP provides.</p>
 <p>RESTlib2 intends to provide a more simple, natural and familiar API for
 creating dynamic Web resources in Python.</p>
 
-<h3>Philosophy</h3>
-
-<ul>
-<li>
-<strong>Be pragmatic.</strong> Don't attempt to solve the world's problems in a single
-resource. Each should be written with equal purpose in mind.</li>
-<li>
-<strong>Keep it simple.</strong> Don't concern yourself with the details until you
-absolutely need to. Setting a plethora of headers will only make things
-more complicated.</li>
-<li>
-<strong>Be consistent.</strong> If you make use of HATEOAS (and you should), use it
-everywhere it makes sense. Support the same mimetypes across your service.</li>
-<li>
-<strong>Keep it visible.</strong> Resources should be as <em>visible</em> as possible. Do not
-obfuscate or overcomplicate how a request is handled, otherwise processing
-becomes non-deterministic.</li>
-</ul><hr><h2>Features</h2>
-
-<ul>
-<li>Familiar API for defining resources using common HTTP terminology</li>
-<li>Simple API for fully embedding resources or referencing resources by
-their own endpoint (see <a href="http://en.wikipedia.org/wiki/HATEOAS">HATEOAS</a>)</li>
-<li>Resource methods (e.g. <code>get</code>, <code>put</code>, <code>post</code>) have access to both the
-<code>request</code> and <code>response</code> objects. Augment the response object as needed.</li>
-<li>Support for defining versions of a resource in the <code>Content-Type</code>, e.g.
-<code>application/json, version=1</code>
-</li>
-<li>Abstract <code>Resource</code> class for quick integration with your favorite
-Web framework</li>
-<li>Built-in implementions for common Web frameworks including Django,
-and Werkzeug</li>
-</ul><hr><h2>Examples</h2>
+<h2>Examples</h2>
 
 <p><strong>Barebone Example</strong> (no sugar)</p>
 
@@ -109,7 +76,7 @@ and Werkzeug</li>
 <span class="k">class</span> <span class="nc">Author</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
     <span class="n">supported_accept_types</span> <span class="o">=</span> <span class="p">[</span><span class="s">'application/json'</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">([{</span>
             <span class="s">'first_name'</span><span class="p">:</span> <span class="s">'John'</span><span class="p">,</span>
             <span class="s">'last_name'</span><span class="p">:</span> <span class="s">'Doe'</span><span class="p">,</span>
@@ -130,7 +97,7 @@ requests only does not accept <code>application/json</code>
 <code>delete</code> are not allowed for this resource. <code>head</code> is accessible if
 <code>get</code> is defined and <code>options</code> is always available unless the service
 is set as unavailable</li>
-</ul><hr><h2>Composite Resources</h2>
+</ul><h2>Composite Resources</h2>
 
 <p>When designing a REST API, an important decision to make up front is
 whether a <em>chatty</em> service is preferred, or a service that requires
@@ -183,136 +150,69 @@ own endpoints (as in the first example).</p>
 results in the client needing to potentially make hundreds or thousands
 additional requests.</p>
 
-<p>RESTlib2 provides an API for reusing resources by either referencing them
-(first example) or embedding them directly (second example).</p>
+<p>It is recommended to use <a href="http://bruth.github.com/django-preserialize/">django-preserialize</a>
+for easily creating custom nested objects. By default, preserialize will recursively embed
+any local fields and local related objects.</p>
 
-<div class="highlight"><pre><span class="o">&gt;&gt;&gt;</span> <span class="n">book</span> <span class="o">=</span> <span class="n">Book</span><span class="p">()</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="n">book</span><span class="o">.</span><span class="n">apply_get</span><span class="p">()</span>
-<span class="p">[{</span> <span class="o">...</span> <span class="p">},</span> <span class="o">...</span><span class="p">]</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="n">book</span><span class="o">.</span><span class="n">apply_get</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<span class="p">{</span> <span class="o">...</span> <span class="p">}</span>
+<div class="highlight"><pre><span class="kn">from</span> <span class="nn">preserialize.serialize</span> <span class="kn">import</span> <span class="n">serialize</span>
+<span class="kn">from</span> <span class="nn">library.models</span> <span class="kn">import</span> <span class="n">Book</span>
+
+<span class="k">class</span> <span class="nc">Author</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="n">supported_accept_types</span> <span class="o">=</span> <span class="p">[</span><span class="s">'application/json'</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">serialize</span><span class="p">(</span><span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 </pre></div>
 
-<hr><h3>Utilities for Models and QuerySets</h3>
+<p>For a bit more control, the fields to be included or excluded can be specified:</p>
 
-<p><code>restlib2.utils.serialize</code> is a one-stop shop for ensuring an object
-is free of <code>Model</code> and <code>QuerySet</code> instances. By default, all non-relational
-fields will be included as well as the primary keys of local related fields.
-Thus a serialized user object might look like this:</p>
+<pre><code>from preserialize.serialize import serialize
+from library.models import Book
 
-<div class="highlight"><pre><span class="o">&gt;&gt;&gt;</span> <span class="n">serialize</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="s">'date_joined'</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2009</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">52</span><span class="p">,</span> <span class="mi">40</span><span class="p">),</span>
-    <span class="s">'email'</span><span class="p">:</span> <span class="s">u'jon@doe.com'</span><span class="p">,</span>
-    <span class="s">'first_name'</span><span class="p">:</span> <span class="s">u'Jon'</span><span class="p">,</span>
-    <span class="s">'groups'</span><span class="p">:</span> <span class="p">[</span><span class="mi">5</span><span class="p">],</span>
-    <span class="s">'id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-    <span class="s">'is_active'</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
-    <span class="s">'is_staff'</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
-    <span class="s">'is_superuser'</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
-    <span class="s">'last_login'</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2012</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">41</span><span class="p">,</span> <span class="mi">927637</span><span class="p">),</span>
-    <span class="s">'last_name'</span><span class="p">:</span> <span class="s">u'Doe'</span><span class="p">,</span>
-    <span class="s">'password'</span><span class="p">:</span> <span class="s">u'!'</span><span class="p">,</span>
-    <span class="s">'user_permissions'</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>
-    <span class="s">'username'</span><span class="p">:</span> <span class="s">u'jdoe'</span>
-<span class="p">}</span>
-</pre></div>
+class Author(Resource):
+    supported_accept_types = ['application/json']
 
-<p>This can then be passed off to an encoder, e.g. JSON, to turn it into a string for
-the response body.</p>
+    def get(self, request):
+        author_template = {
+            'fields': ['first_name', 'last_name']
+        }
 
-<p>Some of these fields may not be appropriate or relevent to include in the response.
-To customize which fields get included or excluded, the following arguments can be
-passed to <code>serialize</code>:</p>
+        book_template = {
+            'fields': ['id', 'title', 'publish_date', 'author']
+            # Define the serialization template for the related author
+            'related': {
+                'author': author_template,
+            }
+        }
+        data = serialize(Book.objects.all(), **book_template)
+        return json.dumps(data)
+</code></pre>
+
+<h2>Philosophy</h2>
 
 <ul>
 <li>
-<code>fields</code> - A list of fields names to include. Method names can also be
-specified that will be called when being serialized. Default is all fields
-and local related fields. See also: <code>exclude</code>, <code>key_map</code>
-</li>
+<strong>Be pragmatic.</strong> Don't attempt to solve the world's problems in a single
+resource. Each should be written with equal purpose in mind.</li>
 <li>
-<code>exclude</code> - A list of fields names to exclude (this takes precedence
-over fields). Default is <code>None</code>. See also: <code>fields</code>, <code>key_map</code>
-</li>
+<strong>Keep it simple.</strong> Don't concern yourself with the details until you
+absolutely need to. Setting a plethora of headers will only make things
+more complicated.</li>
 <li>
-<code>related</code> - A dict of related object accessor and configs (see below) for
-handling related object.</li>
+<strong>Be consistent.</strong> If you make use of HATEOAS (and you should), use it
+everywhere it makes sense. Support the same mimetypes across your service.</li>
 <li>
-<code>values_list</code> - This option only applies to <code>QuerySet</code>s. Returns a list of
-lists which the field values (like Django's <code>ValuesListQuerySet</code>). Default is
-<code>False</code>.</li>
-<li>
-<code>flatten</code> - Applies only if <code>values_list</code> is <code>True</code> and one field is specified.
-If <code>True</code>, flattens out the list of lists into a single list of values. Default is
-<code>True</code>.</li>
-<li>
-<code>key_prefix</code> - A string to be use to prefix the dictionary keys. To enable dynamic
-prefixes, the prefix may contain <code>'%(accessor)s'</code> which will be the class name for
-top-level objects or the accessor name for related objects. Default is <code>None</code>.</li>
-<li>
-<code>key_map</code> - A dict that maps  the keys of the output dictionary to the actual
-field/method names referencing the data. Default is <code>None</code>.  See also: <code>fields</code>
-</li>
-<li>
-<code>camelcase</code> - Converts all keys to a camel-case equivalent. This is merely a
-convenience for conforming to language convention for consumers of this content,
-e.g. JavaScript. Default is <code>False</code>.</li>
-</ul><div class="highlight"><pre><span class="o">&gt;&gt;&gt;</span> <span class="n">serialize</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s">'username'</span><span class="p">,</span> <span class="s">'full_name'</span><span class="p">],</span> <span class="n">key_map</span><span class="o">=</span><span class="p">{</span><span class="s">'full_name'</span><span class="p">:</span> <span class="s">'get_full_name'</span><span class="p">},</span> <span class="n">camelcase</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="s">'fullName'</span><span class="p">:</span> <span class="s">u'Jon Doe'</span><span class="p">,</span>
-    <span class="s">'username'</span><span class="p">:</span> <span class="s">u'jdoe'</span>
-<span class="p">}</span>
-
-<span class="o">&gt;&gt;&gt;</span> <span class="n">serialize</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="s">'password'</span><span class="p">,</span> <span class="s">'groups'</span><span class="p">,</span> <span class="s">'permissions'</span><span class="p">])</span>
-<span class="p">{</span>
-    <span class="s">'date_joined'</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2009</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">52</span><span class="p">,</span> <span class="mi">40</span><span class="p">),</span>
-    <span class="s">'email'</span><span class="p">:</span> <span class="s">u'jon@doe.com'</span><span class="p">,</span>
-    <span class="s">'first_name'</span><span class="p">:</span> <span class="s">u'Jon'</span><span class="p">,</span>
-    <span class="s">'id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-    <span class="s">'is_active'</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
-    <span class="s">'is_staff'</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
-    <span class="s">'is_superuser'</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
-    <span class="s">'last_login'</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2012</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">41</span><span class="p">,</span> <span class="mi">927637</span><span class="p">),</span>
-    <span class="s">'last_name'</span><span class="p">:</span> <span class="s">u'Doe'</span><span class="p">,</span>
-    <span class="s">'username'</span><span class="p">:</span> <span class="s">u'jdoe'</span>
-<span class="p">}</span>
-</pre></div>
-
-<h3>Related Objects</h3>
-
-<p>Composite resources are common when dealing with data with tight relationships.
-The above <code>Author</code> and <code>Book</code> example is a good example of this. It is inefficient
-for a client to have to make two separate requests for data that is typically
-always consumed together.</p>
-
-<p><code>serialize</code> supports the <code>related</code> keyword argument for defining options for
-relational fields. The following additional attributes (to the above) may be
-defined:</p>
-
-<ul>
-<li>
-<code>merge</code> - This option only applies to local <code>ForeignKey</code> or <code>OneToOneField</code>. This
-allows for merging this object's fields into the parent object, e.g. a user and
-their profile.</li>
-</ul><div class="highlight"><pre><span class="o">&gt;&gt;&gt;</span> <span class="n">serialize</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">related</span><span class="o">=</span><span class="p">{</span><span class="s">'groups'</span><span class="p">:</span> <span class="p">{</span><span class="s">'fields'</span><span class="p">:</span> <span class="p">[</span><span class="s">'name'</span><span class="p">],</span> <span class="s">'profile'</span><span class="p">:</span> <span class="p">{</span><span class="s">'merge'</span><span class="p">:</span> <span class="bp">True</span><span class="p">}}})</span>
-<span class="p">{</span>
-    <span class="s">'username'</span><span class="p">:</span> <span class="s">u'jdoe'</span><span class="p">,</span>
-    <span class="s">'groups'</span><span class="p">:</span> <span class="p">[{</span>
-        <span class="s">'name'</span><span class="p">:</span> <span class="s">u'Managers'</span>
-    <span class="p">}]</span>
-    <span class="c"># profile attributes merged into the user</span>
-    <span class="s">'twitter'</span><span class="p">:</span> <span class="s">'@jdoe'</span><span class="p">,</span>
-    <span class="s">'mobile'</span><span class="p">:</span> <span class="s">'123-456-7890'</span><span class="p">,</span>
-    <span class="o">...</span>
-<span class="p">}</span>
-</pre></div>
+<strong>Keep it visible.</strong> Resources should be as <em>visible</em> as possible. Do not
+obfuscate or overcomplicate how a request is handled, otherwise processing
+becomes non-deterministic.</li>
+</ul>
       </section>
       <footer>
         <p><small>Hosted on <a href="https://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
       </footer>
     </div>
-    <!--[if !IE]><script>fixScale(document);</script><!--<![endif]-->
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
 		          <script type="text/javascript">
             var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
             document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
