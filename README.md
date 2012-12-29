@@ -143,7 +143,7 @@ class Author(Resource):
 
 For a bit more control, the fields to be included or excluded can be specified:
 
-```
+```python
 from preserialize.serialize import serialize
 from library.models import Book
 
