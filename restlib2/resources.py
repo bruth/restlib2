@@ -228,6 +228,9 @@ class Resource(object):
     # Every `Resource` class can be initialized once since they are stateless
     # (and thus thread-safe).
     def __call__(self, request, *args, **kwargs):
+        return self.dispatch(request, *args, **kwargs)
+
+    def dispatch(self, request, *args, **kwargs):
         # Process the request. This includes all the necessary checks prior to
         # actually interfacing with the resource itself.
         response = self.process_request(request, *args, **kwargs)
@@ -308,7 +311,8 @@ class Resource(object):
     # ### Request Entity Too Large
     # Check if the request entity is too large to process.
     def is_request_entity_too_large(self, request, response, *args, **kwargs):
-        if request.META['CONTENT_LENGTH'] > self.max_request_entity_length:
+        if self.max_request_entity_length and \
+            request.META['CONTENT_LENGTH'] > self.max_request_entity_length:
             return True
 
     # ### Method Not Allowed
@@ -359,10 +363,15 @@ class Resource(object):
     # ### Precondition Required
     # Check if a conditional request is
     def is_precondition_required(self, request, response, *args, **kwargs):
+        if not self.require_conditional_request:
+            return False
+
         if self.use_etags and 'HTTP_IF_MATCH' not in request.META:
             return True
+
         if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' not in request.META:
             return True
+
         return False
 
     def is_precondition_failed(self, request, response, *args, **kwargs):
@@ -387,7 +396,6 @@ class Resource(object):
 
         return False
 
-
     # ### Not Found
     # Checks if the requested resource exists.
     def is_not_found(self, request, response, *args, **kwargs):
@@ -397,7 +405,6 @@ class Resource(object):
     # Checks if the resource _no longer_ exists.
     def is_gone(self, request, response, *args, **kwargs):
         return False
-
 
 
     # ## Request Accept-* handlers
@@ -614,6 +621,17 @@ class Resource(object):
                 response.status_code = codes.too_many_requests
                 return response
 
+        # ### 405 Method Not Allowed
+        if self.is_method_not_allowed(request, response, *args, **kwargs):
+            response.status_code = codes.method_not_allowed
+            return response
+
+        # ### 406 Not Acceptable
+        # Checks Accept and Accept-* headers
+        if self.is_not_acceptable(request, response, *args, **kwargs):
+            response.status_code = codes.not_acceptable
+            return response
+
         # ### Process an _OPTIONS_ request
         # Enough processing has been performed to allow an OPTIONS request.
         if request.method == methods.OPTIONS and 'OPTIONS' in self.allowed_methods:
@@ -631,21 +649,9 @@ class Resource(object):
 
             # ### 413 Request Entity Too Large
             # Check if the entity is too large for processing
-            if self.max_request_entity_length:
-                if self.is_request_entity_too_large(request, response, *args, **kwargs):
-                    response.status_code = codes.request_entity_too_large
-                    return response
-
-        # ### 405 Method Not Allowed
-        if self.is_method_not_allowed(request, response, *args, **kwargs):
-            response.status_code = codes.method_not_allowed
-            return response
-
-        # ### 406 Not Acceptable
-        # Checks Accept and Accept-* headers
-        if self.is_not_acceptable(request, response, *args, **kwargs):
-            response.status_code = codes.not_acceptable
-            return response
+            if self.is_request_entity_too_large(request, response, *args, **kwargs):
+                response.status_code = codes.request_entity_too_large
+                return response
 
         # ### 404 Not Found
         # Check if this resource exists. Note, if this requires a database
@@ -671,10 +677,9 @@ class Resource(object):
         # Prevents the "lost udpate" problem and requires client to confirm
         # the state of the resource has not changed since the last `GET`
         # request. This applies to `PUT` and `PATCH` requests.
-        if self.require_conditional_request:
-            if request.method == methods.PUT or request.method == methods.PATCH:
-                if self.is_precondition_required(request, response, *args, **kwargs):
-                    return UncacheableResponse(status=codes.precondition_required)
+        if request.method == methods.PUT or request.method == methods.PATCH:
+            if self.is_precondition_required(request, response, *args, **kwargs):
+                return UncacheableResponse(status=codes.precondition_required)
 
         # ### 412 Precondition Failed
         # Conditional requests applies to GET, HEAD, PUT, and PATCH.
