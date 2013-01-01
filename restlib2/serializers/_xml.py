@@ -27,10 +27,10 @@ class DataOrientedXML(object):
 
                 # if this is true, there are multiple elements with this tag name.
                 # the value of this entry must now turn into a list
-                if node.has_key(tag):
+                if tag in node:
                     # if this is true, we must take the existing value and insert it
                     # at the beginning of the list
-                    if type(node[tag]) is not list:
+                    if isinstance(node[tag], list):
                         node[tag] = [node[tag]]
                     # recurse
                     node[tag].append(subnode)
@@ -50,7 +50,7 @@ class DataOrientedXML(object):
             else:
                 # check if a converter exist for this tag
                 _path = '/'.join(path)
-                if converters.has_key(_path):
+                if _path in converters:
                     text = converters[_path](parent.text)
                 else:
                     text = parent.text
