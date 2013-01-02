@@ -234,6 +234,15 @@ class Resource(object):
     # - http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.9.4
     cache_must_revalidate = False
 
+    def __init__(self, **kwargs):
+        for key in kwargs:
+            # Not methods nor methods
+            if key in self.allowed_methods or callable(getattr(self, key, None)):
+                raise TypeError('No HTTP handlers nor methods can be overriden.')
+            if not hasattr(self, key):
+                raise TypeError('{0} is not a valid keyword argument for this resource.'.format(key))
+            setattr(self, key, kwargs[key])
+
     # ## Initialize Once, Process Many
     # Every `Resource` class can be initialized once since they are stateless
     # (and thus thread-safe).
@@ -764,9 +773,3 @@ class Resource(object):
                 self.set_last_modified(request, response)
 
         return response
-
-    # ## Request Programatically
-    # For composite resources, `resource.apply` can be used on related resources
-    # with the original `request`.
-    def apply(self, request, *args, **kargs):
-        pass
