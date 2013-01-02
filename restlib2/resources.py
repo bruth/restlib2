@@ -241,10 +241,29 @@ class Resource(object):
             method_handler = getattr(self, request.method.lower())
             response = method_handler(request, *args, **kwargs)
 
+            # If the return value of the handler is not a response, pass
+            # the return value into the render method.
+            if not isinstance(response, HttpResponse):
+                response = self.render(request, response, *args, **kwargs)
+
         # Process the response, check if the response is overridden and
         # use that instead.
-        # TODO not sure if this is sound for a simple resource
         return self.process_response(request, response)
+
+    def render(self, request, content, *args, **kwargs):
+        "Renders the response based on the content returned from the handler."
+        response = HttpResponse()
+
+        if request.method != methods.HEAD:
+            if isinstance(content, (basestring, file)):
+                response.content = content
+            else:
+                accept_type = getattr(request, '_accept_type', None)
+                if accept_type and serializers.supports_encoding(accept_type):
+                    response.content = serializers.encode(accept_type, content)
+                response['Content-Type'] = accept_type
+
+        return response
 
     # ## Request Method Handlers
     # ### _HEAD_ Request Handler
@@ -525,17 +544,6 @@ class Resource(object):
         return True
 
     # Utility methods
-    def write(self, request, response, content, accept_type=None):
-        if content is None:
-            response.status_code = codes.no_content
-        elif isinstance(content, basestring) or isinstance(content, file):
-            response.content = content
-        else:
-            accept_type = accept_type or getattr(request, '_accept_type', None)
-            if accept_type and serializers.supports_encoding(accept_type):
-                response.content = serializers.encode(accept_type, content)
-            response['Content-Type'] = accept_type
-
     def get_cache(self, request, response):
         "Returns the cache to be used for various components."
         from django.core.cache import cache
@@ -729,16 +737,12 @@ class Resource(object):
     # ## Process the normal response returned by the handler
     def process_response(self, request, response):
         if not isinstance(response, HttpResponse):
-            content = response
-            response = HttpResponse()
-
-            if request.method != methods.HEAD:
-                self.write(request, response, content)
+            response = HttpResponse(response)
 
         if request.method == methods.HEAD:
             response.content = ''
 
-        if request.method == methods.GET or request.method == methods.HEAD:
+        if request.method in (methods.GET, methods.HEAD):
             self.response_cache_control(request, response)
 
             if self.use_etags:
