@@ -20,7 +20,7 @@ class ResourceTestCase(unittest.TestCase):
         # OPTIONS is successful, default response with no content is a 204
         request = self.factory.options('/')
         response = resource(request)
-        self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response.status_code, codes.no_content)
 
         # Try another non-default method
         request = self.factory.get('/')
@@ -50,7 +50,7 @@ class ResourceTestCase(unittest.TestCase):
         resource = PatchResource()
         request = self.factory.options('/')
         response = resource(request)
-        self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response.status_code, codes.no_content)
         self.assertEqual(response['Accept-Patch'], 'application/json')
 
     def test_service_unavailable(self):
@@ -212,7 +212,7 @@ class ResourceTestCase(unittest.TestCase):
         # First ten requests are ok
         for _ in xrange(0, 10):
             response = resource(request)
-            self.assertEqual(response.status_code, codes.ok)
+            self.assertEqual(response.status_code, codes.no_content)
 
         # Mimic a slight delay
         time.sleep(1)
@@ -227,7 +227,7 @@ class ResourceTestCase(unittest.TestCase):
 
         for _ in xrange(0, 10):
             response = resource(request)
-            self.assertEqual(response.status_code, codes.ok)
+            self.assertEqual(response.status_code, codes.no_content)
 
 
     def test_precondition_required(self):

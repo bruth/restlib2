@@ -18,6 +18,16 @@ MAX_CACHE_AGE = 60 * 60 * 24 * 30
 usable = lambda x, y: callable(getattr(x, y, None))
 
 
+def no_content_response(response):
+    "Cautious assessment of the response body for no content."
+    if response._container is None:
+        return True
+    if isinstance(response._container, (list, tuple)):
+        if len(response._container) == 1 and response._container[0] == '':
+            return True
+    return False
+
+
 class UncacheableResponse(HttpResponse):
     "Response class that will never be cached."
     def __init__(self, *args, **kwargs):
@@ -741,6 +751,8 @@ class Resource(object):
 
         if request.method == methods.HEAD:
             response.content = ''
+        elif response.status_code == codes.ok and no_content_response(response):
+            response.status_code = codes.no_content
 
         if request.method in (methods.GET, methods.HEAD):
             self.response_cache_control(request, response)
