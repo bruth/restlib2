@@ -1,11 +1,13 @@
-import unittest
 from calendar import timegm
 from django.test.client import RequestFactory
+from django.test import TestCase
+from django.conf.urls import patterns, url
 from restlib2.resources import Resource
+from restlib2.mixins import TemplateResponseMixin
 from restlib2.http import codes
 
 
-class ResourceTestCase(unittest.TestCase):
+class ResourceTestCase(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
@@ -388,3 +390,38 @@ class ResourceTestCase(unittest.TestCase):
         response = resource(request)
         self.assertEqual(response['Cache-Control'], 'private')
         self.assertEqual(response['Expires'], http_date(timegm((datetime.now() + timedelta(hours=1)).utctimetuple())))
+
+
+
+# Defined here to use as root urlconf
+class TestResource(TemplateResponseMixin, Resource):
+    def get(self, request):
+        pass
+
+urlpatterns = patterns('',
+    url(r'^$', TestResource(template_name='index.html'))
+)
+
+class TemplateResourceTestCase(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_string(self):
+        class TemplateResource(TemplateResponseMixin, Resource):
+            template_string = '<h1>Hello World</h1>'
+
+            def get(self, request):
+                pass
+
+        resource = TemplateResource()
+
+        request = self.factory.get('/')
+        response = resource(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, '<h1>Hello World</h1>')
+
+    def test_template(self):
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, '<h1>Hello from testserver</h1>\n')

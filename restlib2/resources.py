@@ -10,6 +10,7 @@ from django.utils.http import http_date, parse_http_date, parse_etags, quote_eta
 from django.utils.cache import patch_cache_control
 from .http import codes, methods
 from .serializers import serializers
+from .mixins import TemplateResponseMixin
 
 EPOCH_DATE = datetime(1970, 1, 1, 0, 0, 0)
 MAX_CACHE_AGE = 60 * 60 * 24 * 30
@@ -773,3 +774,7 @@ class Resource(object):
                 self.set_last_modified(request, response)
 
         return response
+
+
+class TemplateResource(TemplateResponseMixin, Resource):
+    pass

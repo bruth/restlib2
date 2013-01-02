@@ -1,4 +1,5 @@
 import os
+from django.conf.global_settings import TEMPLATE_CONTEXT_PROCESSORS
 
 SECRET_KEY = '123abc'
 
@@ -9,9 +10,15 @@ DATABASES = {
     }
 }
 
+ROOT_URLCONF = 'restlib2.tests.cases'
+
 INSTALLED_APPS = (
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'restlib2',
     'restlib2.tests',
+)
+
+TEMPLATE_CONTEXT_PROCESSORS += (
+    'django.core.context_processors.request',
 )
