@@ -1,5 +1,9 @@
-from django.core.serializers.json import simplejson, DjangoJSONEncoder
-
+try:
+    import json
+# Implies Python < 2.6
+except ImportError:
+    from django.utils import simplejson as json
+from django.core.serializers.json import DjangoJSONEncoder
 
 class JSON(object):
     """Very basic JSON representation encode/decoder. Additional Python types
@@ -7,7 +11,7 @@ class JSON(object):
     date and time objects.
     """
     encoder_class = DjangoJSONEncoder
-    decoder_class = simplejson.JSONDecoder
+    decoder_class = json.JSONDecoder
 
     encode_options = {}
     decode_options = {}
