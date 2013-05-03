@@ -264,20 +264,22 @@ class Resource(object):
             # If the return value of the handler is not a response, pass
             # the return value into the render method.
             if not isinstance(response, HttpResponse):
-                response = self.render(request, response, *args, **kwargs)
+                response = self.render(request, response, args=args, kwargs=kwargs)
 
         # Process the response, check if the response is overridden and
         # use that instead.
         return self.process_response(request, response)
 
-    def render(self, request, content, *args, **kwargs):
+    def render(self, request, content, status=codes.ok, content_type=None,
+            args=None, kwargs=None):
         "Renders the response based on the content returned from the handler."
-        response = HttpResponse()
+
+        response = HttpResponse(status=status, content_type=content_type)
 
         if request.method != methods.HEAD:
             if isinstance(content, (basestring, file)):
                 response.content = content
-            else:
+            elif not content_type:
                 accept_type = getattr(request, '_accept_type', None)
                 if accept_type and serializers.supports_encoding(accept_type):
                     response.content = serializers.encode(accept_type, content)
