@@ -29,6 +29,13 @@ def no_content_response(response):
     return False
 
 
+def get_content_length(request):
+    try:
+        return int(request.META.get('CONTENT_LENGTH'))
+    except (ValueError, TypeError):
+        return 0
+
+
 class UncacheableResponse(HttpResponse):
     "Response class that will never be cached."
     def __init__(self, *args, **kwargs):
@@ -352,8 +359,9 @@ class Resource(object):
     # ### Request Entity Too Large
     # Check if the request entity is too large to process.
     def is_request_entity_too_large(self, request, response, *args, **kwargs):
+        content_length = get_content_length(request)
         if self.max_request_entity_length and \
-            request.META['CONTENT_LENGTH'] > self.max_request_entity_length:
+                content_length > self.max_request_entity_length:
             return True
 
     # ### Method Not Allowed
@@ -369,6 +377,10 @@ class Resource(object):
     # `Content-Type` is set as the empty string, so ensure it is not falsy
     # when processing it.
     def is_unsupported_media_type(self, request, response, *args, **kwargs):
+        # Ensure there actually is a request body to be decoded
+        if not get_content_length(request):
+            return
+
         if 'CONTENT_TYPE' in request.META:
             if not self.content_type_supported(request, response):
                 return True
@@ -668,20 +680,18 @@ class Resource(object):
             return self.options(request, response)
 
         # ## Request Entity Checks
-        # Only perform these checks if the request has supplied a body.
-        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
 
-            # ### 415 Unsupported Media Type
-            # Check if the entity `Content-Type` supported for decoding.
-            if self.is_unsupported_media_type(request, response, *args, **kwargs):
-                response.status_code = codes.unsupported_media_type
-                return response
+        # ### 415 Unsupported Media Type
+        # Check if the entity `Content-Type` supported for decoding.
+        if self.is_unsupported_media_type(request, response, *args, **kwargs):
+            response.status_code = codes.unsupported_media_type
+            return response
 
-            # ### 413 Request Entity Too Large
-            # Check if the entity is too large for processing
-            if self.is_request_entity_too_large(request, response, *args, **kwargs):
-                response.status_code = codes.request_entity_too_large
-                return response
+        # ### 413 Request Entity Too Large
+        # Check if the entity is too large for processing
+        if self.is_request_entity_too_large(request, response, *args, **kwargs):
+            response.status_code = codes.request_entity_too_large
+            return response
 
         # ### 404 Not Found
         # Check if this resource exists. Note, if this requires a database
@@ -750,8 +760,7 @@ class Resource(object):
                     response.status_code = codes.not_modified
                     return response
 
-        # Check if there is a request body
-        if 'CONTENT_LENGTH' in request.META and request.META['CONTENT_LENGTH']:
+        if get_content_length(request):
             content_type = request._content_type
             if content_type in serializers:
                 request.data = serializers.decode(content_type, request.body)
