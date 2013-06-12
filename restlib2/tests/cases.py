@@ -6,6 +6,23 @@ from restlib2.params import Parametizer, param_cleaners
 from restlib2.resources import Resource
 from restlib2.mixins import TemplateResponseMixin
 from restlib2.http import codes
+from restlib2.structures import AttrDict
+
+
+class StructuresTestCase(TestCase):
+    def test_attrdict(self):
+        attrs = AttrDict('Foo', {
+            'one': 1,
+            'neg one': -1,
+        })
+
+        self.assertEqual(attrs.one, 1)
+        self.assertEqual(attrs.ONE, 1)
+        self.assertEqual(attrs.onE, 1)
+
+        self.assertEqual(attrs.neg_one, -1)
+        self.assertEqual(attrs.NEG_ONE, -1)
+        self.assertEqual(attrs.neg_ONE, -1)
 
 
 class ResourceTestCase(TestCase):
