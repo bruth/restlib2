@@ -22,3 +22,21 @@ INSTALLED_APPS = (
 TEMPLATE_CONTEXT_PROCESSORS += (
     'django.core.context_processors.request',
 )
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'restlib2': {
+            'handlers': ['console'],
+            'propagate': True,
+            'level': 'DEBUG',
+        },
+    }
+}
