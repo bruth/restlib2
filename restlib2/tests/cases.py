@@ -2,7 +2,7 @@ from calendar import timegm
 from django.test.client import RequestFactory
 from django.test import TestCase
 from django.conf.urls import patterns, url
-from restlib2.params import Parametizer, param_cleaners
+from restlib2 import params
 from restlib2.resources import Resource
 from restlib2.mixins import TemplateResponseMixin
 from restlib2.http import codes
@@ -447,7 +447,7 @@ class TemplateResourceTestCase(TestCase):
 
 class ParametizerTestCase(TestCase):
     def test_base(self):
-        p = Parametizer()
+        p = params.Parametizer()
         self.assertEqual(p.clean(), {})
         self.assertEqual(p.clean({}), {})
         self.assertEqual(p.clean({}, {}), {})
@@ -456,16 +456,29 @@ class ParametizerTestCase(TestCase):
         self.assertEqual(p.clean({'foo': 2}, {'foo': 1, 'bar': 1}),
             {'foo': 2, 'bar': 1})
 
-    def test(self):
-        class P(Parametizer):
+    def test_shorthand(self):
+        class P(params.Parametizer):
             page = 1
             query = ''
 
             def clean_page(self, value):
-                return param_cleaners.clean_int(value)
+                return params.param_cleaners.clean_int(value)
 
             def clean_query(self, value):
-                return param_cleaners.clean_string(value)
+                return params.param_cleaners.clean_string(value)
+
+        p = P()
+
+        self.assertEqual(p.clean(), {'page': 1, 'query': ''})
+        self.assertEqual(p.clean({'page': '2'}), {'page': 2, 'query': ''})
+        self.assertEqual(p.clean({'query': '  foo '}), {'page': 1, 'query': 'foo'})
+        self.assertEqual(p.clean({'something': 'else'}),
+            {'page': 1, 'query': '', 'something': 'else'})
+
+    def test_fields(self):
+        class P(params.Parametizer):
+            page = params.IntParam(default=1)
+            query = params.StrParam(default='')
 
         p = P()
 
