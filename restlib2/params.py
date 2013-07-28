@@ -6,15 +6,19 @@ logger = logging.getLogger(__name__)
 
 class Param(object):
     "Describes a single parameter and defines a method for cleaning inputs."
-    def __init__(self, default=None, allow_list=False, description=None, param_key=None, **kwargs):
+    def __init__(self, default=None, allow_list=False, description=None, param_key=None, choices=None, **kwargs):
         self.default = default
         self.allow_list = allow_list
         self.description = description
         self.param_key = param_key
+        self.choices = choices
+
         for key in kwargs:
             setattr(self, key, kwargs[key])
 
     def clean(self, value, *args, **kwargs):
+        if self.choices and value not in self.choices:
+            raise ValueError
         return value
 
     def clean_list(self, values, *args, **kwargs):
@@ -23,12 +27,12 @@ class Param(object):
 
 class IntParam(Param):
     def clean(self, value, *args, **kwargs):
-        return int(value)
+        return super(IntParam, self).clean(int(value), *args, **kwargs)
 
 
 class FloatParam(Param):
     def clean(self, value, *args, **kwargs):
-        return float(value)
+        return super(FloatParam, self).clean(float(value), *args, **kwargs)
 
 
 class StrParam(Param):
@@ -37,16 +41,18 @@ class StrParam(Param):
         super(StrParam, self).__init__(*args, **kwargs)
 
     def clean(self, value, *args, **kwargs):
+        value = str(value)
         if self.strip:
-            return str(value).strip()
-        return str(value)
+            value = value.strip()
+        return super(StrParam, self).clean(value, *args, **kwargs)
 
 
 class UnicodeParam(StrParam):
     def clean(self, value, *args, **kwargs):
+        value = unicode(value)
         if self.strip:
-            return unicode(value).strip()
-        return unicode(value)
+            value = value.strip()
+        return super(UnicodeParam, self).clean(value, *args, **kwargs)
 
 
 class BoolParam(Param):
@@ -58,10 +64,12 @@ class BoolParam(Param):
     def clean(self, value, *args, **kwargs):
         value = value.lower()
         if value in self.true_values:
-            return True
-        if value in self.false_values:
-            return False
-        raise ValueError
+            value = True
+        elif value in self.false_values:
+            value = False
+        else:
+            raise ValueError
+        return super(BoolParam, self).clean(value, *args, **kwargs)
 
 
 class ParametizerMetaclass(type):

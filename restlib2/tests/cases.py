@@ -487,3 +487,12 @@ class ParametizerTestCase(TestCase):
         self.assertEqual(p.clean({'query': '  foo '}), {'page': 1, 'query': 'foo'})
         self.assertEqual(p.clean({'something': 'else'}),
             {'page': 1, 'query': '', 'something': 'else'})
+
+    def test_choices(self):
+        class P(params.Parametizer):
+            page = params.IntParam(default=1, choices=(1, 2, 3))
+
+        p = P()
+
+        self.assertEqual(p.clean({'page': '2'}), {'page': 2})
+        self.assertEqual(p.clean({'page': '4'}), {'page': 1})
