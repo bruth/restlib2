@@ -143,7 +143,6 @@ class Parametizer(object):
                 logger.debug('Error cleaning parameter', extra={
                     'key': key,
                     'value': value,
-                    'error': e.message,
                 })
                 value = defaults.get(key, value)
 
