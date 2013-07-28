@@ -3,12 +3,6 @@ branch = True
 source = restlib2
 
 [report]
-omit =
-    restlib2/__init__.py
-    restlib2/models.py
-    restlib2/structures.py
-    restlib2/tests/*
-
 exclude_lines =
     pragma: no cover
     def __repr__
@@ -20,6 +14,3 @@ exclude_lines =
     raise NotImplemented(Error)?
     if 0:
     if __name__ == .__main__.:
-
-[html]
-directory = docs/coverage
