@@ -1,6 +1,6 @@
 .DS_Store
 .coverage
-*.pyc
+*.py?
 *.sw?
 *.egg
 *.egg-info
