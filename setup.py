@@ -15,7 +15,6 @@ kwargs = {
 
     'install_requires': [
         'django>=1.4',
-        'django-preserialize',
     ],
 
     'test_suite': 'test_suite',
