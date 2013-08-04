@@ -1,6 +1,6 @@
 import os
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'restlib2.tests.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.settings'
 
 from django.core import management
-management.call_command('test', 'restlib2')
+management.call_command('test', 'tests')

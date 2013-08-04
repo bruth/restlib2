@@ -10,13 +10,13 @@ DATABASES = {
     }
 }
 
-ROOT_URLCONF = 'restlib2.tests.cases'
+ROOT_URLCONF = 'tests.cases'
 
 INSTALLED_APPS = (
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'restlib2',
-    'restlib2.tests',
+    'tests',
 )
 
 TEMPLATE_CONTEXT_PROCESSORS += (
