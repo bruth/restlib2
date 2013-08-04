@@ -4,6 +4,8 @@ import re
 class AttrDict(object):
     "A case-insensitive attribute accessible dict-like object"
     def __init__(self, name, *args, **kwargs):
+        self.name = name
+
         for key, value in dict(*args, **kwargs).iteritems():
             if not isinstance(key, basestring) or not key:
                 raise TypeError('attribute names must be non-empty strings')
