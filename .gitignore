@@ -4,5 +4,5 @@
 *.sw?
 *.egg
 *.egg-info
-docs
+docs/_build
 dist
