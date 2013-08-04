@@ -56,5 +56,4 @@ Subpackages
 
     restlib2.http
     restlib2.serializers
-    restlib2.tests
 
