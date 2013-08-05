@@ -16,6 +16,8 @@ class StructuresTestCase(TestCase):
             'neg one': -1,
         })
 
+        self.assertEqual(attrs.name, 'Foo')
+
         self.assertEqual(attrs.one, 1)
         self.assertEqual(attrs.ONE, 1)
         self.assertEqual(attrs.onE, 1)
@@ -448,6 +450,10 @@ class TemplateResourceTestCase(TestCase):
 class ParametizerTestCase(TestCase):
     def test_base(self):
         p = params.Parametizer()
+
+        self.assertEqual(p._fields, {})
+        self.assertEqual(p._defaults, {})
+
         self.assertEqual(p.clean(), {})
         self.assertEqual(p.clean({}), {})
         self.assertEqual(p.clean({}, {}), {})
@@ -469,6 +475,9 @@ class ParametizerTestCase(TestCase):
 
         p = P()
 
+        self.assertEqual(sorted(p._fields.keys()), ['page', 'query'])
+        self.assertEqual(p._defaults, {'page': 1, 'query': ''})
+
         self.assertEqual(p.clean(), {'page': 1, 'query': ''})
         self.assertEqual(p.clean({'page': '2'}), {'page': 2, 'query': ''})
         self.assertEqual(p.clean({'query': '  foo '}), {'page': 1, 'query': 'foo'})
@@ -481,6 +490,9 @@ class ParametizerTestCase(TestCase):
             query = params.StrParam(default='')
 
         p = P()
+
+        self.assertEqual(sorted(p._fields.keys()), ['page', 'query'])
+        self.assertEqual(p._defaults, {'page': 1, 'query': ''})
 
         self.assertEqual(p.clean(), {'page': 1, 'query': ''})
         self.assertEqual(p.clean({'page': '2'}), {'page': 2, 'query': ''})
@@ -496,3 +508,15 @@ class ParametizerTestCase(TestCase):
 
         self.assertEqual(p.clean({'page': '2'}), {'page': 2})
         self.assertEqual(p.clean({'page': '4'}), {'page': 1})
+
+    def test_inheritance(self):
+        class P(params.Parametizer):
+            page = params.IntParam(default=1)
+
+        class P2(P):
+            query = params.StrParam(default='')
+
+        p = P2()
+
+        self.assertEqual(sorted(p._fields.keys()), ['page', 'query'])
+        self.assertEqual(p._defaults, {'page': 1, 'query': ''})
