@@ -468,10 +468,10 @@ class ParametizerTestCase(TestCase):
             query = ''
 
             def clean_page(self, value):
-                return params.param_cleaners.clean_int(value)
+                return int(value)
 
             def clean_query(self, value):
-                return params.param_cleaners.clean_string(value)
+                return str(value).strip()
 
         p = P()
 
