@@ -160,15 +160,3 @@ class Parametizer(object):
             cleaned[key] = value
 
         return cleaned
-
-
-# Backwards compatibility
-class ParamCleaners(object):
-    "Container of various common cleaners for parameters."
-    clean_int = IntParam().clean
-    clean_float = FloatParam().clean
-    clean_string = StrParam().clean
-    clean_bool = BoolParam().clean
-
-
-param_cleaners = ParamCleaners()
