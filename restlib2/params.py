@@ -19,7 +19,7 @@ class Param(object):
 
     def clean(self, value, *args, **kwargs):
         if self.choices and value not in self.choices:
-            raise ValueError
+            raise ValueError('"{0}" not a valid choice'.format(value))
         return value
 
     def clean_list(self, values, *args, **kwargs):
@@ -151,7 +151,7 @@ class Parametizer(object):
                 else:
                     value = field.clean(value)
             except Exception as e:
-                logger.debug('Error cleaning parameter', extra={
+                logger.debug('Error cleaning parameter: {0}'.format(e.message), extra={
                     'key': key,
                     'value': value,
                 })
