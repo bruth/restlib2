@@ -4,7 +4,7 @@ RESTlib2 is an HTTP library which simplifies
 creating dynamic Web resources in Python. RESTlib2 focuses on embracing
 HTTP and enables clean transparent implementations of your resources.
 
-[![Build Status](https://travis-ci.org/bruth/restlib2.png?branch=master)](https://travis-ci.org/bruth/restlib2) [![Coverage Status](https://coveralls.io/repos/bruth/restlib2/badge.png)](https://coveralls.io/r/bruth/restlib2)
+[![Build Status](https://travis-ci.org/bruth/restlib2.png?branch=master)](https://travis-ci.org/bruth/restlib2) [![Coverage Status](https://coveralls.io/repos/bruth/restlib2/badge.png)](https://coveralls.io/r/bruth/restlib2) [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/bruth/restlib2/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
 
 Why?
 ----
