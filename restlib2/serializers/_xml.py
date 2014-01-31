@@ -68,7 +68,7 @@ class DataOrientedXML(object):
 
         # each key becomes a new node, recurse the the value
         if isinstance(data, dict):
-            for k, v in data.iteritems():
+            for k, v in data.items():
                 node = ET.Element(k)
                 self._encode(v, node)
                 parent.append(node)

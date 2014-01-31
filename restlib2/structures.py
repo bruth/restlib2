@@ -6,8 +6,8 @@ class AttrDict(object):
     def __init__(self, name, *args, **kwargs):
         self.name = name
 
-        for key, value in dict(*args, **kwargs).iteritems():
-            if not isinstance(key, basestring) or not key:
+        for key, value in dict(*args, **kwargs).items():
+            if not isinstance(key, str) or not key:
                 raise TypeError('attribute names must be non-empty strings')
             if key[0].isdigit():
                 raise ValueError('attribute names cannot begin with a number')
@@ -15,7 +15,7 @@ class AttrDict(object):
             self.__dict__[_key] = value
 
     def __repr__(self):
-        return u'<AttrDict: %s>' % self.name
+        return '<AttrDict: %s>' % self.name
 
     def __getattr__(self, key):
         _key = key.upper()

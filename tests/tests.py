@@ -60,7 +60,7 @@ class ResourceTestCase(TestCase):
         request = self.factory.head('/')
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
-        self.assertEqual(response.content, '')
+        self.assertEqual(response.content, b'')
 
     def test_default_patch(self):
         # Resources supporting PATCH requests should have an additional
@@ -129,7 +129,7 @@ class ResourceTestCase(TestCase):
         resource = NoOpResource()
 
         # Works.. default accept-type is application/json
-        request = self.factory.post('/', data='{"message": "hello world"}', content_type='application/json; charset=utf-8')
+        request = self.factory.post('/', data=b'{"message": "hello world"}', content_type='application/json; charset=utf-8')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
 
@@ -232,7 +232,7 @@ class ResourceTestCase(TestCase):
         request = self.factory.request(REQUEST_METHOD='OPTIONS')
 
         # First ten requests are ok
-        for _ in xrange(0, 10):
+        for _ in range(0, 10):
             response = resource(request)
             self.assertEqual(response.status_code, codes.no_content)
 
@@ -240,14 +240,14 @@ class ResourceTestCase(TestCase):
         time.sleep(1)
 
         # Another 10 all get throttled..
-        for _ in xrange(0, 10):
+        for _ in range(0, 10):
             response = resource(request)
             self.assertEqual(response.status_code, codes.too_many_requests)
 
         # Another two seconds exceeds the frame, should be good to go
         time.sleep(2)
 
-        for _ in xrange(0, 10):
+        for _ in range(0, 10):
             response = resource(request)
             self.assertEqual(response.status_code, codes.no_content)
 
@@ -281,7 +281,9 @@ class ResourceTestCase(TestCase):
         request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_required)
-        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate, max-age=0')
+        self.assertTrue('no-cache' in response['Cache-Control'])
+        self.assertTrue('must-revalidate' in response['Cache-Control'])
+        self.assertTrue('max-age=0' in response['Cache-Control'])
 
         # Add the correct header for testing the Etag
         request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json',
@@ -315,7 +317,9 @@ class ResourceTestCase(TestCase):
             content_type='application/json', HTTP_IF_MATCH='"def456"')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
-        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate, max-age=0')
+        self.assertTrue('no-cache' in response['Cache-Control'])
+        self.assertTrue('must-revalidate' in response['Cache-Control'])
+        self.assertTrue('max-age=0' in response['Cache-Control'])
 
         # Incorrect Etag match on GET, updated content is returned
         request = self.factory.get('/', HTTP_IF_NONE_MATCH='"def456"')
@@ -355,7 +359,9 @@ class ResourceTestCase(TestCase):
             content_type='application/json', HTTP_IF_UNMODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
-        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate, max-age=0')
+        self.assertTrue('no-cache' in response['Cache-Control'])
+        self.assertTrue('must-revalidate' in response['Cache-Control'])
+        self.assertTrue('max-age=0' in response['Cache-Control'])
 
         # Old last-modified on GET, updated content is returned
         if_modified_since = http_date(timegm((last_modified_date - timedelta(seconds=10)).utctimetuple()))
@@ -439,12 +445,12 @@ class TemplateResourceTestCase(TestCase):
         response = resource(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, '<h1>Hello World</h1>')
+        self.assertEqual(response.content, b'<h1>Hello World</h1>')
 
     def test_template(self):
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, '<h1>Hello from testserver</h1>\n')
+        self.assertEqual(response.content, b'<h1>Hello from testserver</h1>\n')
 
 
 class ParametizerTestCase(TestCase):

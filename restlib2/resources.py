@@ -1,6 +1,8 @@
+import io
 import time
 import hashlib
-import mimeparse
+import collections
+from six import add_metaclass
 # http://mail.python.org/pipermail/python-list/2010-March/1239510.html
 from calendar import timegm
 from datetime import datetime, timedelta
@@ -11,12 +13,13 @@ from django.utils.cache import patch_cache_control
 from .http import codes, methods
 from .serializers import serializers
 from .mixins import TemplateResponseMixin
+from . import mimeparse
 
 EPOCH_DATE = datetime(1970, 1, 1, 0, 0, 0)
 MAX_CACHE_AGE = 60 * 60 * 24 * 30
 
 # Convenience function for checking for existent, callable methods
-usable = lambda x, y: callable(getattr(x, y, None))
+usable = lambda x, y: isinstance(getattr(x, y, None), collections.Callable)
 
 
 def no_content_response(response):
@@ -24,7 +27,7 @@ def no_content_response(response):
     if response._container is None:
         return True
     if isinstance(response._container, (list, tuple)):
-        if len(response._container) == 1 and response._container[0] == '':
+        if len(response._container) == 1 and not response._container[0]:
             return True
     return False
 
@@ -47,7 +50,6 @@ class UncacheableResponse(HttpResponse):
 # ## Resource Metaclass
 # Sets up a few helper components for the `Resource` class.
 class ResourceMetaclass(type):
-
     def __new__(cls, name, bases, attrs):
         # Create the new class as is to start. Subclass attributes can be
         # checked for in `attrs` and handled as necessary relative to the base
@@ -141,10 +143,8 @@ class ResourceMetaclass(type):
 # [2]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-5.1
 # [3]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-6.1
 # [4]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-6.5
+@add_metaclass(ResourceMetaclass)
 class Resource(object):
-
-    __metaclass__ = ResourceMetaclass
-
     # ### Service Availability
     # Toggle this resource as unavailable. If `True`, the service
     # will be unavailable indefinitely. If an integer or datetime is
@@ -245,7 +245,7 @@ class Resource(object):
     def __init__(self, **kwargs):
         for key in kwargs:
             # Not methods nor methods
-            if key in self.allowed_methods or callable(getattr(self, key, None)):
+            if key in self.allowed_methods or isinstance(getattr(self, key, None), collections.Callable):
                 raise TypeError('No HTTP handlers nor methods can be overriden.')
             if not hasattr(self, key):
                 raise TypeError('{0} is not a valid keyword argument for this resource.'.format(key))
@@ -284,7 +284,7 @@ class Resource(object):
         response = HttpResponse(status=status, content_type=content_type)
 
         if request.method != methods.HEAD:
-            if isinstance(content, (basestring, file)):
+            if isinstance(content, (str, io.IOBase)):
                 response.content = content
             elif not content_type:
                 accept_type = getattr(request, '_accept_type', None)
@@ -763,7 +763,7 @@ class Resource(object):
         if get_content_length(request):
             content_type = request._content_type
             if content_type in serializers:
-                request.data = serializers.decode(content_type, request.body)
+                request.data = serializers.decode(content_type, request.body.decode())
 
     # ## Process the normal response returned by the handler
     def process_response(self, request, response):

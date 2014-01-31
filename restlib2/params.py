@@ -1,5 +1,7 @@
 import logging
 import warnings
+import collections
+from six import add_metaclass
 from functools import partial
 
 logger = logging.getLogger(__name__)
@@ -23,7 +25,7 @@ class Param(object):
         return value
 
     def clean_list(self, values, *args, **kwargs):
-        return map(lambda x: self.clean(x, *args, **kwargs), values)
+        return [self.clean(x, *args, **kwargs) for x in values]
 
 
 class IntParam(Param):
@@ -50,7 +52,7 @@ class StrParam(Param):
 
 class UnicodeParam(StrParam):
     def clean(self, value, *args, **kwargs):
-        value = unicode(value)
+        value = str(value)
         if self.strip:
             value = value.strip()
         return super(UnicodeParam, self).clean(value, *args, **kwargs)
@@ -85,7 +87,7 @@ class ParametizerMetaclass(type):
             defaults.update(new_cls.param_defaults)
 
         for attr, value in attrs.items():
-            if not callable(value) and not attr.startswith('_'):
+            if not isinstance(value, collections.Callable) and not attr.startswith('_'):
                 # Wrap shorthand definition in param class
                 if isinstance(value, Param):
                     field = value
@@ -108,9 +110,8 @@ class ParametizerMetaclass(type):
         return new_cls
 
 
+@add_metaclass(ParametizerMetaclass)
 class Parametizer(object):
-    __metaclass__ = ParametizerMetaclass
-
     def clean(self, params=None, defaults=None):
         if params is None:
             params = {}
@@ -124,7 +125,7 @@ class Parametizer(object):
 
         # Gather both sets of keys since there may be methods defined
         # without a default value specified.
-        keys = set(param_defaults.keys() + params.keys())
+        keys = set(list(param_defaults.keys()) + list(params.keys()))
 
         for key in keys:
             # Add the default value for non-existant keys in params
@@ -151,7 +152,7 @@ class Parametizer(object):
                 else:
                     value = field.clean(value)
             except Exception as e:
-                logger.debug('Error cleaning parameter: {0}'.format(e.message), extra={
+                logger.debug('Error cleaning parameter: {0}'.format(e), extra={
                     'key': key,
                     'value': value,
                 })

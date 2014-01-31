@@ -48,8 +48,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'restlib2'
-copyright = u'2013, Byron Ruth'
+project = 'restlib2'
+copyright = '2013, Byron Ruth'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -194,8 +194,8 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'restlib2.tex', u'restlib2 Documentation',
-   u'Byron Ruth', 'manual'),
+  ('index', 'restlib2.tex', 'restlib2 Documentation',
+   'Byron Ruth', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -224,8 +224,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'restlib2', u'restlib2 Documentation',
-     [u'Byron Ruth'], 1)
+    ('index', 'restlib2', 'restlib2 Documentation',
+     ['Byron Ruth'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -238,8 +238,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'restlib2', u'restlib2 Documentation',
-   u'Byron Ruth', 'restlib2', 'One line description of project.',
+  ('index', 'restlib2', 'restlib2 Documentation',
+   'Byron Ruth', 'restlib2', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -259,10 +259,10 @@ texinfo_documents = [
 # -- Options for Epub output ---------------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = u'restlib2'
-epub_author = u'Byron Ruth'
-epub_publisher = u'Byron Ruth'
-epub_copyright = u'2013, Byron Ruth'
+epub_title = 'restlib2'
+epub_author = 'Byron Ruth'
+epub_publisher = 'Byron Ruth'
+epub_copyright = '2013, Byron Ruth'
 
 # The language of the text. It defaults to the language option
 # or en if the language is not set.
