@@ -1,6 +1,12 @@
 import warnings
 from . import _json, _plain, _octet, _xml, _www
 
+try:
+    str = unicode
+except NameError:
+    pass
+
+
 class Library(object):
     library = {}
 

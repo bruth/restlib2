@@ -1,5 +1,10 @@
 import re
 
+try:
+    str = unicode
+except NameError:
+    pass
+
 
 class AttrDict(object):
     "A case-insensitive attribute accessible dict-like object"
@@ -7,11 +12,11 @@ class AttrDict(object):
         self.name = name
 
         for key, value in dict(*args, **kwargs).items():
-            if not isinstance(key, str) or not key:
+            if not isinstance(key, (str, bytes)) or not key:
                 raise TypeError('attribute names must be non-empty strings')
             if key[0].isdigit():
                 raise ValueError('attribute names cannot begin with a number')
-            _key = re.sub(r'[^\w\d_]+', ' ', re.sub(r'[\s-]+', '_', key.upper()))
+            _key = re.sub(r'[^\w\d_]+', ' ', re.sub(r'[\s-]+', '_', str(key).upper()))
             self.__dict__[_key] = value
 
     def __repr__(self):

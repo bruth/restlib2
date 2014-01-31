@@ -22,6 +22,12 @@ MAX_CACHE_AGE = 60 * 60 * 24 * 30
 usable = lambda x, y: isinstance(getattr(x, y, None), collections.Callable)
 
 
+try:
+    str = unicode
+except NameError:
+    pass
+
+
 def no_content_response(response):
     "Cautious assessment of the response body for no content."
     if response._container is None:
@@ -284,7 +290,7 @@ class Resource(object):
         response = HttpResponse(status=status, content_type=content_type)
 
         if request.method != methods.HEAD:
-            if isinstance(content, (str, io.IOBase)):
+            if isinstance(content, (str, bytes, io.IOBase)):
                 response.content = content
             elif not content_type:
                 accept_type = getattr(request, '_accept_type', None)
@@ -763,7 +769,11 @@ class Resource(object):
         if get_content_length(request):
             content_type = request._content_type
             if content_type in serializers:
-                request.data = serializers.decode(content_type, request.body.decode())
+                if isinstance(request.body, bytes):
+                    data = serializers.decode(content_type, request.body.decode())
+                else:
+                    data = serializers.decode(content_type, request.body)
+                request.data = data
 
     # ## Process the normal response returned by the handler
     def process_response(self, request, response):
