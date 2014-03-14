@@ -792,9 +792,12 @@ class Resource(object):
     def process_response(self, request, response):
         # Set default content-type for no content response
         if no_content_response(response):
-            accept_type = self.get_accept_type(request)
-            if accept_type:
-                response['Content-Type'] = accept_type
+            # Do not alter the content-type if an attachment is supplied
+            if 'Content-Disposition' not in response:
+                accept_type = self.get_accept_type(request)
+
+                if accept_type:
+                    response['Content-Type'] = accept_type
 
             if request.method != methods.HEAD and response.status_code == codes.ok:
                 response.status_code = codes.no_content
