@@ -53,13 +53,14 @@ class ResourceTestCase(TestCase):
     def test_default_head(self):
         class GetResource(Resource):
             def get(self, request):
-                return '{}'
+                return {}
 
         resource = GetResource()
 
         request = self.factory.head('/')
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response['Content-Type'], 'application/json')
         self.assertEqual(response.content, b'')
 
     def test_default_patch(self):
@@ -74,6 +75,7 @@ class ResourceTestCase(TestCase):
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
         self.assertEqual(response['Accept-Patch'], 'application/json')
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_service_unavailable(self):
         "Test service unavailability."
@@ -88,6 +90,7 @@ class ResourceTestCase(TestCase):
         response = resource(request)
         self.assertEqual(response.status_code, codes.service_unavailable)
         self.assertTrue('Retry-After' not in response)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_service_unavailable_retry_seconds(self):
         "Test service unavailability with seconds."
@@ -102,6 +105,7 @@ class ResourceTestCase(TestCase):
         response = resource(request)
         self.assertEqual(response.status_code, codes.service_unavailable)
         self.assertEqual(response['Retry-After'], '20')
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_service_unavailable_retry_date(self):
         "Test service unavailability with date."
@@ -119,6 +123,7 @@ class ResourceTestCase(TestCase):
         response = resource(request)
         self.assertEqual(response.status_code, codes.service_unavailable)
         self.assertEqual(response['Retry-After'], http_date(timegm(future.utctimetuple())))
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_unsupported_media_type(self):
         "Test various Content-* combinations."
@@ -132,17 +137,19 @@ class ResourceTestCase(TestCase):
         request = self.factory.post('/', data=b'{"message": "hello world"}', content_type='application/json; charset=utf-8')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Does not work.. XML not accepted by default
         request = self.factory.post('/', data='<message>hello world</message>', content_type='application/xml')
         response = resource(request)
         self.assertEqual(response.status_code, codes.unsupported_media_type)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_not_acceptable(self):
         "Test Accept header."
         class ReadOnlyResource(Resource):
             def get(self, request, *args, **kwargs):
-                return '{}'
+                return {}
 
         resource = ReadOnlyResource()
 
@@ -151,23 +158,27 @@ class ResourceTestCase(TestCase):
         request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Explicit accept header, application/json wins since it's equal
         # priority and supported
         request = self.factory.request(HTTP_ACCEPT='application/json,application/xml;q=0.9,*/*;q=0.8')
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # No acceptable type list, */* has an explicit quality of 0 which
         # does not allow the server to use an alternate content-type
         request = self.factory.request(HTTP_ACCEPT='text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0')
         response = resource(request)
         self.assertEqual(response.status_code, codes.not_acceptable)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Like the first one, but an explicit "anything goes"
         request = self.factory.request(HTTP_ACCEPT='*/*')
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_request_entity_too_large(self):
         "Test request entity too large."
@@ -183,11 +194,13 @@ class ResourceTestCase(TestCase):
         request = self.factory.post('/', data='{"message": "hello"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Too large
         request = self.factory.post('/', data='{"message": "hello world"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.request_entity_too_large)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_too_many_requests(self):
         """Test a global rate limiting implementation.
@@ -235,6 +248,7 @@ class ResourceTestCase(TestCase):
         for _ in range(0, 10):
             response = resource(request)
             self.assertEqual(response.status_code, codes.no_content)
+            self.assertEqual(response['Content-Type'], 'application/json')
 
         # Mimic a slight delay
         time.sleep(1)
@@ -243,6 +257,7 @@ class ResourceTestCase(TestCase):
         for _ in range(0, 10):
             response = resource(request)
             self.assertEqual(response.status_code, codes.too_many_requests)
+            self.assertEqual(response['Content-Type'], 'application/json')
 
         # Another two seconds exceeds the frame, should be good to go
         time.sleep(2)
@@ -250,6 +265,7 @@ class ResourceTestCase(TestCase):
         for _ in range(0, 10):
             response = resource(request)
             self.assertEqual(response.status_code, codes.no_content)
+            self.assertEqual(response['Content-Type'], 'application/json')
 
 
     def test_precondition_required(self):
@@ -281,6 +297,7 @@ class ResourceTestCase(TestCase):
         request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_required)
+        self.assertEqual(response['Content-Type'], 'application/json')
         self.assertTrue('no-cache' in response['Cache-Control'])
         self.assertTrue('must-revalidate' in response['Cache-Control'])
         self.assertTrue('max-age=0' in response['Cache-Control'])
@@ -290,11 +307,13 @@ class ResourceTestCase(TestCase):
                 HTTP_IF_MATCH='abc123')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Idempotent requests, such as DELETE, succeed..
         request = self.factory.delete('/')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_precondition_failed_etag(self):
         "Test precondition using etags."
@@ -305,7 +324,7 @@ class ResourceTestCase(TestCase):
                 pass
 
             def get(self, request):
-                return '{}'
+                return {}
 
             def get_etag(self, request, *args, **kwargs):
                 return 'abc123'
@@ -317,6 +336,7 @@ class ResourceTestCase(TestCase):
             content_type='application/json', HTTP_IF_MATCH='"def456"')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
+        self.assertEqual(response['Content-Type'], 'application/json')
         self.assertTrue('no-cache' in response['Cache-Control'])
         self.assertTrue('must-revalidate' in response['Cache-Control'])
         self.assertTrue('max-age=0' in response['Cache-Control'])
@@ -325,11 +345,13 @@ class ResourceTestCase(TestCase):
         request = self.factory.get('/', HTTP_IF_NONE_MATCH='"def456"')
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Successful Etag match on GET, resource not modified
         request = self.factory.get('/', HTTP_IF_NONE_MATCH='"abc123"')
         response = resource(request)
         self.assertEqual(response.status_code, codes.not_modified)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_precondition_failed_last_modified(self):
         "Test precondition using last-modified dates."
@@ -346,7 +368,7 @@ class ResourceTestCase(TestCase):
                 pass
 
             def get(self, request):
-                return '{}'
+                return {}
 
             def get_last_modified(self, request, *args, **kwargs):
                 return last_modified_date
@@ -359,6 +381,7 @@ class ResourceTestCase(TestCase):
             content_type='application/json', HTTP_IF_UNMODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
+        self.assertEqual(response['Content-Type'], 'application/json')
         self.assertTrue('no-cache' in response['Cache-Control'])
         self.assertTrue('must-revalidate' in response['Cache-Control'])
         self.assertTrue('max-age=0' in response['Cache-Control'])
@@ -368,36 +391,40 @@ class ResourceTestCase(TestCase):
         request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
         # Mimic future request on GET, resource not modified
         if_modified_since = http_date(timegm((last_modified_date + timedelta(seconds=20)).utctimetuple()))
         request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.not_modified)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_cache_control_default(self):
         class CacheableResource(Resource):
             def get(self, request):
-                return '{}'
+                return {}
 
         resource = CacheableResource()
 
         request = self.factory.get('/')
         response = resource(request)
         self.assertFalse('Cache-Control' in response)
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_cache_control_seconds(self):
         class CacheableResource(Resource):
             cache_max_age = 60 * 60 # 1 hour
 
             def get(self, request):
-                return '{}'
+                return {}
 
         resource = CacheableResource()
 
         request = self.factory.get('/')
         response = resource(request)
         self.assertEqual(response['Cache-Control'], 'max-age=3600')
+        self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_cache_control_date(self):
         from datetime import datetime, timedelta
@@ -408,7 +435,7 @@ class ResourceTestCase(TestCase):
             cache_max_age = timedelta(seconds=60 * 60) # 1 hour
 
             def get(self, request):
-                return '{}'
+                return {}
 
         resource = CacheableResource()
 
@@ -416,6 +443,7 @@ class ResourceTestCase(TestCase):
         response = resource(request)
         self.assertEqual(response['Cache-Control'], 'private')
         self.assertEqual(response['Expires'], http_date(timegm((datetime.now() + timedelta(hours=1)).utctimetuple())))
+        self.assertEqual(response['Content-Type'], 'application/json')
 
 
 

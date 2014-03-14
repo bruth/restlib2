@@ -30,11 +30,16 @@ except NameError:
 
 def no_content_response(response):
     "Cautious assessment of the response body for no content."
+    if not hasattr(response, '_container'):
+        return True
+
     if response._container is None:
         return True
+
     if isinstance(response._container, (list, tuple)):
         if len(response._container) == 1 and not response._container[0]:
             return True
+
     return False
 
 
@@ -274,29 +279,30 @@ class Resource(object):
             method_handler = getattr(self, request.method.lower())
             response = method_handler(request, *args, **kwargs)
 
-            # If the return value of the handler is not a response, pass
-            # the return value into the render method.
             if not isinstance(response, HttpResponse):
+                # If the return value of the handler is not a response, pass
+                # the return value into the render method.
                 response = self.render(request, response, args=args, kwargs=kwargs)
 
         # Process the response, check if the response is overridden and
         # use that instead.
         return self.process_response(request, response)
 
-    def render(self, request, content, status=codes.ok, content_type=None,
+    def render(self, request, content=None, status=codes.ok, content_type=None,
             args=None, kwargs=None):
         "Renders the response based on the content returned from the handler."
 
         response = HttpResponse(status=status, content_type=content_type)
 
-        if request.method != methods.HEAD:
-            if isinstance(content, (str, bytes, io.IOBase)):
-                response.content = content
-            elif not content_type:
-                accept_type = getattr(request, '_accept_type', None)
-                if accept_type and serializers.supports_encoding(accept_type):
-                    response.content = serializers.encode(accept_type, content)
-                response['Content-Type'] = accept_type
+        if content is not None:
+            if not isinstance(content, (str, bytes, io.IOBase)):
+                accept_type = self.get_accept_type(request)
+
+                if serializers.supports_encoding(accept_type):
+                    content = serializers.encode(accept_type, content)
+                    response['Content-Type'] = accept_type
+
+            response.content = content
 
         return response
 
@@ -491,8 +497,8 @@ class Resource(object):
         # If `supported_accept_types` is empty, it is assumed that the resource
         # will return whatever it wants.
         if self.supported_accept_types:
-            response._accept_type = self.supported_accept_types[0]
-        return True
+            request._accept_type = self.supported_accept_types[0]
+            return True
 
     # Checks if the requested `Accept-Charset` is supported.
     def accept_charset_supported(self, request, response):
@@ -505,6 +511,13 @@ class Resource(object):
     # Checks if the requested `Accept-Language` is supported.
     def accept_language_supported(self, request, response):
         return True
+
+    def get_accept_type(self, request):
+        if hasattr(request, '_accept_type'):
+            return request._accept_type
+
+        if self.supported_accept_types:
+            return self.supported_accept_types[0]
 
     # ## Conditionl Request Handlers
 
@@ -777,13 +790,19 @@ class Resource(object):
 
     # ## Process the normal response returned by the handler
     def process_response(self, request, response):
-        if not isinstance(response, HttpResponse):
-            response = HttpResponse(response)
+        # Set default content-type for no content response
+        if no_content_response(response):
+            accept_type = self.get_accept_type(request)
+            if accept_type:
+                response['Content-Type'] = accept_type
 
+            if request.method != methods.HEAD and response.status_code == codes.ok:
+                response.status_code = codes.no_content
+
+        # Set content to nothing after no content is handled since it must
+        # retain the properties of the GET response
         if request.method == methods.HEAD:
             response.content = ''
-        elif response.status_code == codes.ok and no_content_response(response):
-            response.status_code = codes.no_content
 
         if request.method in (methods.GET, methods.HEAD):
             self.response_cache_control(request, response)
