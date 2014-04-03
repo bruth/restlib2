@@ -15,7 +15,7 @@ kwargs = {
 
     'install_requires': [
         'django>=1.4',
-        'six',
+        'six>=1.4.0',
     ],
 
     'test_suite': 'test_suite',
