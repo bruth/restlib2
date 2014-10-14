@@ -8,7 +8,8 @@ from calendar import timegm
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.http import HttpResponse, HttpRequest
-from django.utils.http import http_date, parse_http_date, parse_etags, quote_etag
+from django.utils.http import http_date, parse_http_date, parse_etags, \
+    quote_etag
 from django.utils.cache import patch_cache_control
 from .http import codes, methods
 from .serializers import serializers
@@ -55,7 +56,8 @@ class UncacheableResponse(HttpResponse):
     def __init__(self, *args, **kwargs):
         super(UncacheableResponse, self).__init__(*args, **kwargs)
         self['Expires'] = 0
-        patch_cache_control(self, no_cache=True, must_revalidate=True, max_age=0)
+        patch_cache_control(self, no_cache=True, must_revalidate=True,
+                            max_age=0)
 
 
 # ## Resource Metaclass
@@ -87,8 +89,8 @@ class ResourceMetaclass(type):
 
             for method in allowed_methods:
                 if not usable(new_cls, method.lower()):
-                    raise ValueError('The %s method is not defined for the '
-                        'resource %s' % (method, new_cls.__name__))
+                    msg = 'The {0} method is not defined for the resource {1}'
+                    raise ValueError(msg.format(method, new_cls.__name__))
 
         # If `GET` is not allowed, remove `HEAD` method.
         if 'GET' not in allowed_methods and 'HEAD' in allowed_methods:
@@ -129,31 +131,38 @@ class ResourceMetaclass(type):
 # requires the `GET` handler to be implemented. Although not required, the
 # `OPTIONS` handler is also implemented.
 #
-# Response representations should follow the rules outlined in [Section 5.1][2].
+# Response representations should follow the rules outlined in [Section
+# 5.1][2].
 #
 # [Section 6.1][3] defines that `GET`, `HEAD`, `OPTIONS` and `TRACE` are
 # considered _safe_ methods, thus ensure the implementation of these methods do
 # not have any side effects. In addition to the safe methods, `PUT` and
-# `DELETE` are considered _idempotent_ which means subsequent identical requests
-# to the same resource does not result it different responses to the client.
+# `DELETE` are considered _idempotent_ which means subsequent identical
+# requests to the same resource does not result it different responses to
+# the client.
 #
 # Request bodies on `GET`, `HEAD`, `OPTIONS`, and `DELETE` requests are
 # ignored. The HTTP spec does not define any semantics surrounding this
 # situtation.
 #
-# Typical uses of `POST` requests are described in [Section 6.5][4], but in most
-# cases should be assumed by clients as _black box_, neither safe nor idempotent.
-# If updating an existing resource, it is more appropriate to use `PUT`.
+# Typical uses of `POST` requests are described in [Section 6.5][4], but in
+# most cases should be assumed by clients as _black box_, neither safe nor
+# idempotent. If updating an existing resource, it is more appropriate to use
+# `PUT`.
 #
-# [Section 7.2.1][5] defines that `GET`, `HEAD`, `POST`, and 'TRACE' should have
-# a payload for status code of 200 OK. If not supplied, a different 2xx code may
-# be more appropriate.
+# [Section 7.2.1][5] defines that `GET`, `HEAD`, `POST`, and 'TRACE' should
+# have a payload for status code of 200 OK. If not supplied, a different 2xx
+# code may be more appropriate.
 #
-# [0]: http://code.google.com/p/http-headers-status/downloads/detail?name=http-headers-status%20v3%20draft.png
+# [0]: http://code.google.com/p/http-headers-status/downloads/detail?name
+# =http-headers-status%20v3%20draft.png
 # [1]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-2
-# [2]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-5.1
-# [3]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-6.1
-# [4]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section-6.5
+# [2]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section
+# -5.1
+# [3]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section
+# -6.1
+# [4]: http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-18#section
+# -6.5
 @add_metaclass(ResourceMetaclass)
 class Resource(object):
     # ### Service Availability
@@ -256,10 +265,13 @@ class Resource(object):
     def __init__(self, **kwargs):
         for key in kwargs:
             # Not methods nor methods
-            if key in self.allowed_methods or isinstance(getattr(self, key, None), collections.Callable):
-                raise TypeError('No HTTP handlers nor methods can be overriden.')
+            if key in self.allowed_methods or isinstance(
+                    getattr(self, key, None), collections.Callable):
+                raise TypeError(
+                    'No HTTP handlers nor methods can be overriden.')
             if not hasattr(self, key):
-                raise TypeError('{0} is not a valid keyword argument for this resource.'.format(key))
+                tpl = '{0} is not a valid keyword argument for this resource.'
+                raise TypeError(tpl.format(key))
             setattr(self, key, kwargs[key])
 
     # ## Initialize Once, Process Many
@@ -282,14 +294,15 @@ class Resource(object):
             if not isinstance(response, HttpResponse):
                 # If the return value of the handler is not a response, pass
                 # the return value into the render method.
-                response = self.render(request, response, args=args, kwargs=kwargs)
+                response = self.render(request, response, args=args,
+                                       kwargs=kwargs)
 
         # Process the response, check if the response is overridden and
         # use that instead.
         return self.process_response(request, response)
 
     def render(self, request, content=None, status=codes.ok, content_type=None,
-            args=None, kwargs=None):
+               args=None, kwargs=None):
         "Renders the response based on the content returned from the handler."
 
         response = HttpResponse(status=status, content_type=content_type)
@@ -325,7 +338,6 @@ class Resource(object):
         response['Allow'] = ', '.join(sorted(self.allowed_methods))
         response['Content-Length'] = 0
         return response
-
 
     # ## Response Status Code Handlers
     # Each handler prefixed with `is_` corresponds to various client (4xx)
@@ -434,7 +446,8 @@ class Resource(object):
         if self.use_etags and 'HTTP_IF_MATCH' not in request.META:
             return True
 
-        if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' not in request.META:
+        if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' not in \
+                request.META:
             return True
 
         return False
@@ -449,14 +462,17 @@ class Resource(object):
             if request_etag != etag:
                 return True
 
-        # Last-Modified date enabled. check for conditional request headers. The
-        # current modification datetime value is used for the conditional
-        # requests. After the request method handler has been processed, the new
-        # Last-Modified datetime will be returned.
-        if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' in request.META:
+        # Last-Modified date enabled. check for conditional request headers.
+        # The current modification datetime value is used for the conditional
+        # requests. After the request method handler has been processed, the
+        # new Last-Modified datetime will be returned.
+        if self.use_last_modified and 'HTTP_IF_UNMODIFIED_SINCE' in \
+                request.META:
             last_modified = self.get_last_modified(request, *args, **kwargs)
-            known_last_modified = EPOCH_DATE + timedelta(seconds=parse_http_date(request.META['HTTP_IF_UNMODIFIED_SINCE']))
-            if  known_last_modified != last_modified:
+            known_last_modified = EPOCH_DATE + timedelta(
+                seconds=parse_http_date(
+                    request.META['HTTP_IF_UNMODIFIED_SINCE']))
+            if known_last_modified != last_modified:
                 return True
 
         return False
@@ -470,7 +486,6 @@ class Resource(object):
     # Checks if the resource _no longer_ exists.
     def is_gone(self, request, response, *args, **kwargs):
         return False
-
 
     # ## Request Accept-* handlers
 
@@ -574,7 +589,8 @@ class Resource(object):
 
     def set_expiry(self, request, response, cache_timeout=None):
         if 'Expires' not in response:
-            response['Expires'] = http_date(self.get_expiry(request, cache_timeout))
+            response['Expires'] = http_date(
+                self.get_expiry(request, cache_timeout))
 
     # ## Entity Content-* handlers
 
@@ -695,7 +711,8 @@ class Resource(object):
 
         # ### Process an _OPTIONS_ request
         # Enough processing has been performed to allow an OPTIONS request.
-        if request.method == methods.OPTIONS and 'OPTIONS' in self.allowed_methods:
+        if request.method == methods.OPTIONS and 'OPTIONS' in \
+                self.allowed_methods:
             return self.options(request, response)
 
         # ## Request Entity Checks
@@ -708,7 +725,8 @@ class Resource(object):
 
         # ### 413 Request Entity Too Large
         # Check if the entity is too large for processing
-        if self.is_request_entity_too_large(request, response, *args, **kwargs):
+        if self.is_request_entity_too_large(request, response, *args,
+                                            **kwargs):
             response.status_code = codes.request_entity_too_large
             return response
 
@@ -737,7 +755,8 @@ class Resource(object):
         # the state of the resource has not changed since the last `GET`
         # request. This applies to `PUT` and `PATCH` requests.
         if request.method == methods.PUT or request.method == methods.PATCH:
-            if self.is_precondition_required(request, response, *args, **kwargs):
+            if self.is_precondition_required(request, response, *args,
+                                             **kwargs):
                 return UncacheableResponse(status=codes.precondition_required)
 
         # ### 412 Precondition Failed
@@ -755,25 +774,31 @@ class Resource(object):
             # Check Etags before Last-Modified...
             if self.use_etags and 'HTTP_IF_NONE_MATCH' in request.META:
                 # Parse request Etags (only one is currently supported)
-                request_etag = parse_etags(request.META['HTTP_IF_NONE_MATCH'])[0]
+                request_etag = parse_etags(
+                    request.META['HTTP_IF_NONE_MATCH'])[0]
 
                 # Check if the request Etag is valid. The current Etag is
                 # supplied to enable strategies where the etag does not need
                 # to be used to regenerate the Etag. This may include
                 # generating an MD5 of the resource and storing it as a key
                 # in memcache.
-                etag = self.get_etag(request, response, request_etag, *args, **kwargs)
+                etag = self.get_etag(request, response, request_etag, *args,
+                                     **kwargs)
 
                 # Nothing has changed, simply return
                 if request_etag == etag:
                     response.status_code = codes.not_modified
                     return response
 
-            if self.use_last_modified and 'HTTP_IF_MODIFIED_SINCE' in request.META:
+            if self.use_last_modified and 'HTTP_IF_MODIFIED_SINCE' in \
+                    request.META:
                 # Get the last known modified date from the client, compare it
                 # to the last modified date of the resource
-                last_modified = self.get_last_modified(request, *args, **kwargs)
-                known_last_modified = EPOCH_DATE + timedelta(seconds=parse_http_date(request.META['HTTP_IF_MODIFIED_SINCE']))
+                last_modified = self.get_last_modified(request, *args,
+                                                       **kwargs)
+                known_last_modified = EPOCH_DATE + timedelta(
+                    seconds=parse_http_date(
+                        request.META['HTTP_IF_MODIFIED_SINCE']))
 
                 if known_last_modified >= last_modified:
                     response.status_code = codes.not_modified
@@ -783,7 +808,8 @@ class Resource(object):
             content_type = request._content_type
             if content_type in serializers:
                 if isinstance(request.body, bytes):
-                    data = serializers.decode(content_type, request.body.decode())
+                    data = serializers.decode(content_type,
+                                              request.body.decode())
                 else:
                     data = serializers.decode(content_type, request.body)
                 request.data = data
@@ -799,7 +825,8 @@ class Resource(object):
                 if accept_type:
                     response['Content-Type'] = accept_type
 
-            if request.method != methods.HEAD and response.status_code == codes.ok:
+            if request.method != methods.HEAD and response.status_code == \
+                    codes.ok:
                 response.status_code = codes.no_content
 
         # Set content to nothing after no content is handled since it must

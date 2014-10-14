@@ -122,7 +122,8 @@ class ResourceTestCase(TestCase):
         request = self.factory.request()
         response = resource(request)
         self.assertEqual(response.status_code, codes.service_unavailable)
-        self.assertEqual(response['Retry-After'], http_date(timegm(future.utctimetuple())))
+        self.assertEqual(response['Retry-After'],
+                         http_date(timegm(future.utctimetuple())))
         self.assertEqual(response['Content-Type'], 'application/json')
 
     def test_unsupported_media_type(self):
@@ -134,13 +135,15 @@ class ResourceTestCase(TestCase):
         resource = NoOpResource()
 
         # Works.. default accept-type is application/json
-        request = self.factory.post('/', data=b'{"message": "hello world"}', content_type='application/json; charset=utf-8')
+        request = self.factory.post('/', data=b'{"message": "hello world"}',
+                                    content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
         self.assertEqual(response['Content-Type'], 'application/json')
 
         # Does not work.. XML not accepted by default
-        request = self.factory.post('/', data='<message>hello world</message>', content_type='application/xml')
+        request = self.factory.post('/', data='<message>hello world</message>',
+                                    content_type='application/xml')
         response = resource(request)
         self.assertEqual(response.status_code, codes.unsupported_media_type)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -162,14 +165,17 @@ class ResourceTestCase(TestCase):
 
         # Explicit accept header, application/json wins since it's equal
         # priority and supported
-        request = self.factory.request(HTTP_ACCEPT='application/json,application/xml;q=0.9,*/*;q=0.8')
+        request = self.factory.request(
+            HTTP_ACCEPT='application/json,application/xml;q=0.9,*/*;q=0.8')
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
         self.assertEqual(response['Content-Type'], 'application/json')
 
         # No acceptable type list, */* has an explicit quality of 0 which
         # does not allow the server to use an alternate content-type
-        request = self.factory.request(HTTP_ACCEPT='text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0')
+        request = self.factory.request(
+            HTTP_ACCEPT='text/html,application/xhtml+xml,'
+                        'application/xml;q=0.9,*/*;q=0')
         response = resource(request)
         self.assertEqual(response.status_code, codes.not_acceptable)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -191,13 +197,15 @@ class ResourceTestCase(TestCase):
         resource = TinyResource()
 
         # No problem..
-        request = self.factory.post('/', data='{"message": "hello"}', content_type='application/json')
+        request = self.factory.post('/', data='{"message": "hello"}',
+                                    content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
         self.assertEqual(response['Content-Type'], 'application/json')
 
         # Too large
-        request = self.factory.post('/', data='{"message": "hello world"}', content_type='application/json')
+        request = self.factory.post('/', data='{"message": "hello world"}',
+                                    content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.request_entity_too_large)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -229,8 +237,8 @@ class ResourceTestCase(TestCase):
                 # Increment the request count
                 self.request_count += 1
 
-                # Reset frame if the interval is greater than the rate limit seconds,
-                # i.e on the 3rd second in this test
+                # Reset frame if the interval is greater than the rate limit
+                # seconds, i.e on the 3rd second in this test
                 if interval > self.rate_limit_seconds:
                     self.request_frame_start = datetime.now()
                     self.request_count = 1
@@ -238,7 +246,6 @@ class ResourceTestCase(TestCase):
                 elif self.request_count > self.rate_limit_count:
                     return True
                 return False
-
 
         resource = RateLimitResource()
 
@@ -267,9 +274,9 @@ class ResourceTestCase(TestCase):
             self.assertEqual(response.status_code, codes.no_content)
             self.assertEqual(response['Content-Type'], 'application/json')
 
-
     def test_precondition_required(self):
-        "Reject non-idempotent requests without the use of a conditional header."
+        """"Reject non-idempotent requests without the use of a conditional
+        header."""
 
         class PreconditionResource(Resource):
             # Either etags or last-modified must be used otherwise it
@@ -289,12 +296,12 @@ class ResourceTestCase(TestCase):
             def get_etag(self, request, *args, **kwargs):
                 return 'abc123'
 
-
         resource = PreconditionResource()
 
         # Non-idempotent requests fail without a conditional header, these
         # responses should not be cached
-        request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json')
+        request = self.factory.put('/', data='{"message": "hello world"}',
+                                   content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_required)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -303,8 +310,9 @@ class ResourceTestCase(TestCase):
         self.assertTrue('max-age=0' in response['Cache-Control'])
 
         # Add the correct header for testing the Etag
-        request = self.factory.put('/', data='{"message": "hello world"}', content_type='application/json',
-                HTTP_IF_MATCH='abc123')
+        request = self.factory.put('/', data='{"message": "hello world"}',
+                                   content_type='application/json',
+                                   HTTP_IF_MATCH='abc123')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -333,7 +341,8 @@ class ResourceTestCase(TestCase):
 
         # Send a non-safe request with an incorrect Etag.. fail
         request = self.factory.put('/', data='{"message": "hello world"}',
-            content_type='application/json', HTTP_IF_MATCH='"def456"')
+                                   content_type='application/json',
+                                   HTTP_IF_MATCH='"def456"')
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -376,9 +385,11 @@ class ResourceTestCase(TestCase):
         resource = PreconditionResource()
 
         # Send non-safe request with a old last-modified date.. fail
-        if_modified_since = http_date(timegm((last_modified_date - timedelta(seconds=10)).utctimetuple()))
+        if_modified_since = http_date(timegm(
+            (last_modified_date - timedelta(seconds=10)).utctimetuple()))
         request = self.factory.put('/', data='{"message": "hello world"}',
-            content_type='application/json', HTTP_IF_UNMODIFIED_SINCE=if_modified_since)
+                                   content_type='application/json',
+                                   HTTP_IF_UNMODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.precondition_failed)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -387,15 +398,19 @@ class ResourceTestCase(TestCase):
         self.assertTrue('max-age=0' in response['Cache-Control'])
 
         # Old last-modified on GET, updated content is returned
-        if_modified_since = http_date(timegm((last_modified_date - timedelta(seconds=10)).utctimetuple()))
-        request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=if_modified_since)
+        if_modified_since = http_date(timegm(
+            (last_modified_date - timedelta(seconds=10)).utctimetuple()))
+        request = self.factory.get('/',
+                                   HTTP_IF_MODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.ok)
         self.assertEqual(response['Content-Type'], 'application/json')
 
         # Mimic future request on GET, resource not modified
-        if_modified_since = http_date(timegm((last_modified_date + timedelta(seconds=20)).utctimetuple()))
-        request = self.factory.get('/', HTTP_IF_MODIFIED_SINCE=if_modified_since)
+        if_modified_since = http_date(timegm(
+            (last_modified_date + timedelta(seconds=20)).utctimetuple()))
+        request = self.factory.get('/',
+                                   HTTP_IF_MODIFIED_SINCE=if_modified_since)
         response = resource(request)
         self.assertEqual(response.status_code, codes.not_modified)
         self.assertEqual(response['Content-Type'], 'application/json')
@@ -414,7 +429,7 @@ class ResourceTestCase(TestCase):
 
     def test_cache_control_seconds(self):
         class CacheableResource(Resource):
-            cache_max_age = 60 * 60 # 1 hour
+            cache_max_age = 60 * 60  # 1 hour
 
             def get(self, request):
                 return {}
@@ -432,7 +447,7 @@ class ResourceTestCase(TestCase):
 
         class CacheableResource(Resource):
             cache_type = 'private'
-            cache_max_age = timedelta(seconds=60 * 60) # 1 hour
+            cache_max_age = timedelta(seconds=60 * 60)  # 1 hour
 
             def get(self, request):
                 return {}
@@ -442,9 +457,9 @@ class ResourceTestCase(TestCase):
         request = self.factory.get('/')
         response = resource(request)
         self.assertEqual(response['Cache-Control'], 'private')
-        self.assertEqual(response['Expires'], http_date(timegm((datetime.now() + timedelta(hours=1)).utctimetuple())))
+        self.assertEqual(response['Expires'], http_date(
+            timegm((datetime.now() + timedelta(hours=1)).utctimetuple())))
         self.assertEqual(response['Content-Type'], 'application/json')
-
 
 
 # Defined here to use as root urlconf
@@ -452,9 +467,10 @@ class TestResource(TemplateResponseMixin, Resource):
     def get(self, request):
         pass
 
+
 urlpatterns = patterns('',
-    url(r'^$', TestResource(template_name='index.html'))
-)
+                       url(r'^$', TestResource(template_name='index.html')))
+
 
 class TemplateResourceTestCase(TestCase):
     def setUp(self):
@@ -494,7 +510,7 @@ class ParametizerTestCase(TestCase):
         self.assertEqual(p.clean({}, {'foo': 1}), {'foo': 1})
         self.assertEqual(p.clean({'foo': 1}), {'foo': 1})
         self.assertEqual(p.clean({'foo': 2}, {'foo': 1, 'bar': 1}),
-            {'foo': 2, 'bar': 1})
+                         {'foo': 2, 'bar': 1})
 
     def test_shorthand(self):
         class P(params.Parametizer):
@@ -514,9 +530,10 @@ class ParametizerTestCase(TestCase):
 
         self.assertEqual(p.clean(), {'page': 1, 'query': ''})
         self.assertEqual(p.clean({'page': '2'}), {'page': 2, 'query': ''})
-        self.assertEqual(p.clean({'query': '  foo '}), {'page': 1, 'query': 'foo'})
+        self.assertEqual(p.clean({'query': '  foo '}),
+                         {'page': 1, 'query': 'foo'})
         self.assertEqual(p.clean({'something': 'else'}),
-            {'page': 1, 'query': '', 'something': 'else'})
+                         {'page': 1, 'query': '', 'something': 'else'})
 
     def test_fields(self):
         class P(params.Parametizer):
@@ -530,9 +547,10 @@ class ParametizerTestCase(TestCase):
 
         self.assertEqual(p.clean(), {'page': 1, 'query': ''})
         self.assertEqual(p.clean({'page': '2'}), {'page': 2, 'query': ''})
-        self.assertEqual(p.clean({'query': '  foo '}), {'page': 1, 'query': 'foo'})
+        self.assertEqual(p.clean({'query': '  foo '}),
+                         {'page': 1, 'query': 'foo'})
         self.assertEqual(p.clean({'something': 'else'}),
-            {'page': 1, 'query': '', 'something': 'else'})
+                         {'page': 1, 'query': '', 'something': 'else'})
 
     def test_choices(self):
         class P(params.Parametizer):
