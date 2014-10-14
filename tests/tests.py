@@ -135,7 +135,8 @@ class ResourceTestCase(TestCase):
         resource = NoOpResource()
 
         # Works.. default accept-type is application/json
-        request = self.factory.post('/', data=b'{"message": "hello world"}',
+        request = self.factory.post('/',
+                                    data=b'{"message": "hello w\xc3\xb6"}',
                                     content_type='application/json')
         response = resource(request)
         self.assertEqual(response.status_code, codes.no_content)
@@ -559,6 +560,7 @@ class ParametizerTestCase(TestCase):
         p = P()
 
         self.assertEqual(p.clean({'page': '2'}), {'page': 2})
+        # Will log an error about illegal '4' choice and default to 1
         self.assertEqual(p.clean({'page': '4'}), {'page': 1})
 
     def test_inheritance(self):

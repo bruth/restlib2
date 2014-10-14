@@ -809,7 +809,7 @@ class Resource(object):
             if content_type in serializers:
                 if isinstance(request.body, bytes):
                     data = serializers.decode(content_type,
-                                              request.body.decode())
+                                              request.body.decode('utf-8'))
                 else:
                     data = serializers.decode(content_type, request.body)
                 request.data = data
